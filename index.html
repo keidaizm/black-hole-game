@@ -1,0 +1,1464 @@
+<title>ぼくのブラックホール</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Zen+Maru+Gothic:wght@500;700;900&display=swap">
+<style>
+/* Layout: full-bleed 3D canvas, HUD in a padded fixed layer, overlays as cards on a dimmed screen */
+:root{
+  --void:#04050b; --deep:#0a0b1d; --ink:#f6f1e7; --dim:#a8abc4;
+  --hot:#ffa94d; --hot2:#ffd98a; --cool:#74d6ff; --ok:#9be38a;
+  --panel:rgba(10,11,28,.66); --line:rgba(255,255,255,.16);
+  --body:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Yu Gothic",sans-serif;
+  --num:"DotGothic16","Hiragino Sans",monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background-color:var(--void);
+  background-image:
+    radial-gradient(60% 45% at 78% 18%,rgba(70,60,150,.35),transparent 70%),
+    radial-gradient(55% 40% at 12% 82%,rgba(20,110,130,.28),transparent 70%);
+  color:var(--ink); font-family:var(--body); font-weight:500; line-height:1.5;
+  overflow:hidden; touch-action:none; -webkit-user-select:none; user-select:none;
+  -webkit-tap-highlight-color:transparent;
+}
+#gl{position:fixed; inset:0; width:100%; height:100%; display:block}
+
+#ui{
+  position:fixed; inset:0; z-index:5;
+  display:flex; flex-direction:column; justify-content:space-between; gap:10px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-top:calc(10px + env(safe-area-inset-top,0px));
+  padding-bottom:calc(14px + env(safe-area-inset-bottom,0px));
+  pointer-events:none;
+}
+#head{display:flex; flex-direction:column; gap:8px; min-width:0}
+#top{display:flex; justify-content:space-between; align-items:flex-start; gap:8px}
+.chip{
+  background:var(--panel); border:1px solid var(--line); border-radius:14px;
+  padding:7px 12px; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); min-width:0;
+}
+.chip .k{display:block; font-size:11px; color:var(--dim); letter-spacing:.06em}
+.chip b{display:block; font-size:15px; font-weight:900}
+.btn{pointer-events:auto; cursor:pointer; color:var(--ink); font:inherit; text-align:left}
+.btn:focus-visible,.go:focus-visible{outline:3px solid var(--cool); outline-offset:2px}
+#zukanBtn b,#soundBtn b{font-family:var(--num); font-weight:400; color:var(--hot2)}
+#topR{display:flex; gap:8px}
+#soundBtn.off b{color:var(--dim)}
+.stages{display:flex; flex-direction:column; gap:8px}
+.stg{
+  display:flex; align-items:center; gap:12px; width:100%; min-width:0; text-align:left; cursor:pointer;
+  background:rgba(255,255,255,.04); border:1px solid var(--line); border-radius:14px; padding:10px 12px;
+  color:var(--ink); font:inherit;
+}
+.stg:focus-visible{outline:3px solid var(--cool); outline-offset:2px}
+.stg .no{font-family:var(--num); font-size:26px; color:var(--hot2); flex:none; width:1.3em; text-align:center}
+.stg .tx{flex:1; min-width:0}
+.stg b{display:block; font-size:16px; font-weight:900}
+.stg small{display:block; font-size:12px; color:var(--dim)}
+.stg .ok{flex:none; font-size:11px; font-weight:900; color:#10260c; background:var(--ok); border-radius:99px; padding:1px 8px}
+.stg.now{border-color:var(--hot)}
+
+#scale{max-width:520px; display:flex; flex-direction:column; gap:5px}
+#scale .row{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
+#scale .lbl{font-size:11px; color:var(--dim); letter-spacing:.06em}
+#sizeNum{font-family:var(--num); font-size:28px; color:var(--hot2); line-height:1.1; text-shadow:0 0 14px rgba(255,170,80,.45)}
+#lives{margin-left:auto; display:flex; gap:3px; font-size:22px; line-height:1}
+#lives .h{color:#ff6b81; text-shadow:0 0 8px rgba(255,90,120,.6)}
+#lives .h.off{color:rgba(255,255,255,.22); text-shadow:none}
+#flash{position:fixed; inset:0; z-index:6; pointer-events:none; opacity:0; background:radial-gradient(ellipse at center,rgba(255,60,80,0) 35%,rgba(255,40,70,.55) 100%); transition:opacity .35s}
+#flash.on{opacity:1; transition:none}
+#flashW{position:fixed; inset:0; z-index:6; pointer-events:none; opacity:0; background:radial-gradient(circle at 50% 56%,rgba(255,255,255,.95),rgba(255,222,160,.5) 45%,rgba(255,200,120,0) 78%); transition:opacity 1.3s}
+#flashW.on{opacity:1; transition:opacity .08s}
+.conf{position:fixed; z-index:8; left:50%; top:56%; pointer-events:none; font-size:22px; color:var(--hot2); text-shadow:0 0 10px rgba(255,200,100,.9); animation:cf 1.7s ease-out forwards}
+@keyframes cf{0%{transform:translate(-50%,-50%) scale(.3); opacity:1} 100%{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(1.3) rotate(var(--rot)); opacity:0}}
+#combo{position:fixed; z-index:7; left:0; right:0; top:44%; text-align:center; pointer-events:none; font-size:clamp(20px,6vw,30px); font-weight:900; color:var(--hot2); text-shadow:0 0 14px rgba(255,170,80,.8),0 2px 0 rgba(0,0,0,.6); opacity:0}
+#combo.pop{animation:cp .95s ease-out}
+@keyframes cp{0%{opacity:0; transform:scale(.6)} 20%{opacity:1; transform:scale(1.15)} 100%{opacity:0; transform:translateY(-34px) scale(1)}}
+#clParade{display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin:6px 0 8px; max-height:104px; overflow:hidden}
+#clSize{font-size:clamp(18px,6vw,26px); white-space:nowrap}
+#tmrBar{display:none; align-items:center; justify-content:center; gap:10px; align-self:flex-start; padding:5px 14px; border-radius:999px; background:var(--panel); border:1px solid var(--line); font-weight:700}
+#tmrBar.on{display:flex}
+#tmrMode{font-size:12px; color:var(--dim)}
+#tmr{font-family:var(--num); font-size:20px; color:var(--hot2); letter-spacing:.02em}
+.modeLbl{margin:14px 0 6px; font-size:12px; color:var(--dim)}
+#clStamp{color:var(--hot2); font-weight:700}
+.stg.lock{opacity:.45; cursor:not-allowed}
+.txtbtn{background:none; border:0; color:var(--dim); font:inherit; font-size:12px; text-decoration:underline; cursor:pointer; align-self:flex-start; padding:4px 0}
+#likeLine{font-size:12px; color:var(--dim); min-height:1.5em}
+#bar{position:relative; height:10px; border-radius:6px; background:rgba(255,255,255,.12); overflow:visible}
+#barFill{position:absolute; left:0; top:0; bottom:0; width:0; border-radius:6px; background:linear-gradient(90deg,var(--cool),var(--hot))}
+#ticks{position:absolute; inset:0}
+.tick{position:absolute; top:50%; width:6px; height:6px; margin:-3px 0 0 -3px; border-radius:50%; background:rgba(255,255,255,.35)}
+.tick.on{background:var(--hot2); box-shadow:0 0 8px var(--hot)}
+#barLbl{display:flex; justify-content:space-between; font-size:11px; color:var(--dim)}
+
+#bottom{display:flex; align-items:flex-end; justify-content:space-between; gap:12px; min-height:92px}
+#toast{
+  max-width:min(68vw,380px); min-width:0; padding:10px 14px; border-radius:14px;
+  background:var(--panel); border:1px solid var(--line); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  opacity:0; transform:translateY(8px); transition:opacity .25s, transform .25s;
+}
+#toast{display:flex; gap:10px; align-items:center}
+#toastTx{min-width:0}
+.ic{flex:none; display:block}
+#toast.show{opacity:1; transform:none}
+#toast .nw{font-size:11px; font-weight:900; color:#1a0e00; background:var(--hot); display:inline-block; padding:1px 8px; border-radius:99px; margin-bottom:3px}
+#toast .nm{font-weight:900; font-size:16px}
+#toast .sz{font-family:var(--num); font-size:12px; color:var(--hot2); margin-left:6px}
+#toast .ds{font-size:13px; color:var(--ink)}
+
+#boost{
+  pointer-events:auto; flex:none; width:88px; height:88px; border-radius:50%; cursor:pointer;
+  color:var(--ink); font:inherit; font-weight:900; font-size:12px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px;
+  background:radial-gradient(circle at 50% 35%,rgba(116,214,255,.35),rgba(10,40,70,.85));
+  border:2px solid var(--cool); box-shadow:0 0 18px rgba(116,214,255,.3);
+  touch-action:none;
+}
+#boost.on{transform:scale(.94); box-shadow:0 0 30px rgba(116,214,255,.75); background:radial-gradient(circle at 50% 35%,rgba(116,214,255,.6),rgba(10,60,100,.9))}
+#boost .ch{display:block; width:20px; height:20px; position:relative}
+#boost .ch::before,#boost .ch::after{content:""; position:absolute; left:3px; width:11px; height:11px; border-left:3px solid var(--ink); border-top:3px solid var(--ink); transform:rotate(45deg)}
+#boost .ch::before{top:2px}
+#boost .ch::after{top:9px}
+#boost small{font-size:10px; font-weight:500; color:var(--dim)}
+
+#stick{position:fixed; z-index:6; width:108px; height:108px; margin:-54px 0 0 -54px; border-radius:50%; border:2px solid rgba(255,255,255,.22); background:rgba(255,255,255,.05); display:none; pointer-events:none}
+#stick i{position:absolute; left:50%; top:50%; width:46px; height:46px; margin:-23px 0 0 -23px; border-radius:50%; background:rgba(255,217,138,.55); border:2px solid var(--hot2)}
+
+#banner{
+  position:fixed; z-index:7; left:0; right:0; top:34%; text-align:center; pointer-events:none;
+  padding:0 24px; font-size:clamp(22px,6.4vw,36px); font-weight:900; line-height:1.3;
+  text-shadow:0 0 18px rgba(255,160,70,.7),0 2px 0 rgba(0,0,0,.6);
+  opacity:0; transition:opacity .5s; text-wrap:balance;
+}
+#banner small{display:block; font-size:.5em; font-weight:500; color:var(--hot2); margin-top:4px}
+#banner.show{opacity:1}
+
+.screen{
+  position:fixed; inset:0; z-index:20; display:none; overflow:auto; pointer-events:auto;
+  background:rgba(3,4,10,.84); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-top:calc(16px + env(safe-area-inset-top,0px));
+  padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));
+  touch-action:pan-y;
+}
+.screen.open{display:flex}
+.card{
+  margin:auto; width:min(100%,520px); min-width:0; background:var(--deep); border:1px solid var(--line);
+  border-radius:20px; padding:22px 20px; display:flex; flex-direction:column; gap:14px;
+}
+.card h1{margin:0; font-size:clamp(30px,9vw,44px); font-weight:900; line-height:1.15; text-wrap:balance; text-shadow:0 0 22px rgba(255,160,70,.45)}
+.card h2{margin:0; font-size:clamp(22px,6.5vw,30px); font-weight:900; line-height:1.25; text-wrap:balance}
+.card p{margin:0; color:var(--dim); font-size:15px}
+.card p b{color:var(--hot2)}
+.mark{width:64px; height:64px; border-radius:50%; background:#000; box-shadow:0 0 0 5px #ffb04f,0 0 0 9px rgba(255,160,70,.35),0 0 34px 10px rgba(255,150,60,.5); margin:6px 0 10px 8px}
+.how{margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px}
+.how li{display:flex; gap:10px; align-items:baseline; font-size:15px}
+.how li span{font-family:var(--num); color:var(--hot); flex:none; min-width:4.2em}
+.row2{display:flex; gap:10px; flex-wrap:wrap}
+.go{
+  background:var(--hot); color:#1a0e00; font:inherit; font-weight:900; font-size:18px; border:0; cursor:pointer;
+  border-radius:999px; padding:13px 24px; align-self:flex-start;
+}
+.go.alt{background:transparent; color:var(--ink); border:1.5px solid var(--line)}
+.big{font-family:var(--num); font-size:30px; color:var(--hot2)}
+.zc{display:flex; flex-direction:column; gap:10px}
+.zc h3{margin:8px 0 0; font-size:14px; color:var(--cool); letter-spacing:.04em}
+.grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px}
+.it{border:1px solid var(--line); border-radius:12px; padding:9px 10px; min-width:0; display:flex; gap:9px; align-items:flex-start}
+.it .tx{min-width:0; flex:1}
+.it.lock .ic{filter:brightness(0) opacity(.45)}
+.it.lock{opacity:.5}
+.it b{display:block; font-size:14px; overflow-wrap:anywhere}
+.it .s{font-family:var(--num); font-size:11px; color:var(--hot2)}
+.it .d{font-size:12px; color:var(--dim); margin-top:2px}
+@media (prefers-reduced-motion:reduce){#toast,#banner{transition:none}}
+</style>
+
+<canvas id="gl"></canvas>
+
+<div id="ui">
+  <div id="head">
+    <div id="top">
+      <button class="chip btn" id="chapterChip" type="button"><span class="k" id="chK">だい1しょう ▾</span><b id="chName">すなつぶの せかい</b></button>
+      <div id="topR">
+        <button class="chip btn" id="soundBtn" type="button" aria-label="おとの オンオフ"><span class="k">おと</span><b id="soundState">ON</b></button>
+        <button class="chip btn" id="zukanBtn" type="button"><span class="k">ずかん</span><b id="zukanCount">0/0</b></button>
+      </div>
+    </div>
+    <div id="tmrBar"><span id="tmrMode"></span><b id="tmr"></b></div>
+    <div id="scale">
+      <div class="row"><span class="lbl">いまの おおきさ</span><span id="sizeNum">-</span><span id="lives" aria-label="ライフ"></span></div>
+      <div id="likeLine"></div>
+      <div id="bar"><i id="barFill"></i><div id="ticks"></div></div>
+      <div id="barLbl"><span id="barA"></span><span id="barB"></span></div>
+    </div>
+  </div>
+  <div id="bottom">
+    <div id="toast" aria-live="polite"><span id="toastIc"></span><div id="toastTx"></div></div>
+    <button id="boost" type="button" aria-label="ブースト"><span class="ch"></span>ブースト<small>ちょっと ちいさく なる</small></button>
+  </div>
+</div>
+
+<div id="flash"></div><div id="flashW"></div><div id="combo"></div>
+<div id="stick"><i></i></div>
+<div id="banner"></div>
+
+<div class="screen open" id="sStart">
+  <div class="card">
+    <div class="mark"></div>
+    <h1>ぼくの<br>ブラックホール</h1>
+    <p>ちいさな あなから はじまって、うちゅうの ものを ぜんぶ <b>ぱくぱく</b> たべよう。たべるほど おおきく なって、せかいが ひろがっていくよ。</p>
+    <ul class="how">
+      <li><span>うごかす</span>ゆびを おいて スーッと すべらせる</li>
+      <li><span>ブースト</span>はやく うごける。かわりに すこし ちいさく なる</li>
+      <li><span>たべる</span>じぶんより ちいさい ものだけ たべられる</li>
+    </ul>
+    <div class="row2">
+      <button class="go" id="startBtn" type="button">はじめる</button>
+      <button class="go alt" id="newBtn" type="button" style="display:none">はじめから</button>
+      <button class="go alt" id="stageBtn" type="button">ステージを えらぶ</button>
+    </div>
+    <p class="modeLbl">べつの あそびかた</p>
+    <div class="row2">
+      <button class="go alt" id="taBtn" type="button">⏱ タイムアタック</button>
+      <button class="go alt" id="chBtn" type="button">★ ぱくぱくチャレンジ</button>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="sOver">
+  <div class="card">
+    <h2>ざんねん! やられちゃった</h2>
+    <p id="overTx">だいじょうぶ。<b>さっきの ところから</b> つづけられるよ。おおきさも そのままだよ。</p>
+    <div class="row2">
+      <button class="go" id="contBtn" type="button">つづける</button>
+      <button class="go alt" id="overStageBtn" type="button">ステージを えらぶ</button>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="sSelect">
+  <div class="card">
+    <h2 id="selTitle">ステージを えらぶ</h2>
+    <p id="selSub">すきな ステージから はじめられるよ。</p>
+    <div class="stages" id="stList"></div>
+    <button class="txtbtn" id="allBtn" type="button"></button>
+    <button class="go alt" id="stClose" type="button">もどる</button>
+  </div>
+</div>
+
+<div class="screen" id="sClear">
+  <div class="card">
+    <h2 id="clTitle">だい1しょう クリア!</h2>
+    <p id="clLbl">いまの おおきさ</p>
+    <div class="big" id="clSize">-</div>
+    <p id="clStart"></p>
+    <div id="clParade"></div>
+    <p id="clStamp"></p>
+    <p id="clNext"></p>
+    <div class="row2">
+      <button class="go" id="nextBtn" type="button">つぎへ</button>
+      <button class="go alt" id="clStageBtn" type="button">ステージを えらぶ</button>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="sEnd">
+  <div class="card">
+    <h2>ここまで クリア!<br>すごい!</h2>
+    <p>うちゅうの はてまで ぱくっと ぜんぶ たべたよ! ほんとうに すごい! <b>また あそんでね。</b></p>
+    <div class="row2">
+      <button class="go" id="againBtn" type="button">もういちど</button>
+      <button class="go alt" id="endStageBtn" type="button">ステージを えらぶ</button>
+      <button class="go alt" id="endZukanBtn" type="button">ずかんを みる</button>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="sZukan">
+  <div class="card">
+    <h2>ずかん</h2>
+    <p id="zSum"></p>
+    <div class="zc" id="zList"></div>
+    <button class="go" id="zClose" type="button">とじる</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const TAU=Math.PI*2;
+
+/* ---------- データ: 章とアイテム (sizeはメートル) ---------- */
+const CH=[
+ {n:'すなつぶの せかい',sub:'かふんや すなつぶを たべよう',d0:6e-5,goal:8e-3,bites:61,skin:0xff9040,fill:'ちいさな つぶ',cols:[0xd9c7a3,0xb8a98c,0xcdbd9c],fk:'rock'},
+ {n:'うちゅうゴミ',sub:'うちゅうに ういている がらくたを たべよう',d0:8e-3,goal:3,bites:94,skin:0xffb030,fill:'うちゅうの がらくた',cols:[0x8a8f99,0xa59685,0xb7bcc6],fk:'shard'},
+ {n:'じんこうえいせい',sub:'はやぶさや ISS を ぱくり!',d0:3,goal:250,bites:81,skin:0xff7a8a,fill:'いわの かけら',cols:[0x8a8f99,0xa59685,0x6f7683],fk:'rock'},
+ {n:'しょうわくせい',sub:'イトカワや フォボスを たべよう',d0:250,goal:1e5,bites:94,skin:0xc77dff,fill:'いわの かたまり',cols:[0x8c8279,0x9b8f80,0x756e68],fk:'rock'},
+ {n:'つきと ちいさな ほし',sub:'つきや イオを たべよう',d0:1e5,goal:1e7,bites:81,skin:0x5ac8fa,fill:'こおりの かたまり',cols:[0xcfe3f2,0xb9c8d8,0x9fb3c8],fk:'rock'},
+ {n:'わくせい',sub:'ちきゅうも もくせいも ぜんぶ たべよう',d0:1e7,goal:3.2e8,bites:74,skin:0x7a9bff,fill:'ガスの かたまり',cols:[0xcfe3f2,0xe3cf9b,0xb9c8d8],fk:'rock'},
+ {n:'たいよう',sub:'ついに たいようを ぱくり!',d0:3.2e8,goal:5e9,bites:54,skin:0xfff2b0,fill:'ほのおの かたまり',cols:[0xffd27a,0xffb347,0xff8a5c],fk:'glow'},
+ {n:'こうせい',sub:'おおきな ほしを つぎつぎ たべよう',d0:5e9,goal:4e12,bites:68,skin:0xff8a5c,fill:'ほしの かけら',cols:[0xffd27a,0xaee7ff,0xff9a7a],fk:'glow'},
+ {n:'ほしの あつまり',sub:'たいようけいも せいうんも ぱくり!',d0:4e12,goal:3e18,bites:81,skin:0xd77aff,fill:'ほし',cols:[0xffffff,0xaee7ff,0xffe2a8],fk:'glow'},
+ {n:'ぎんが',sub:'あまのがわぎんがも アンドロメダも!',d0:3e18,goal:4e21,bites:81,skin:0xaee7ff,fill:'ほしの あつまり',cols:[0xffffff,0xaee7ff,0xffe2a8],fk:'glow'},
+ {n:'ぎんがの なかま',sub:'ぎんがが あつまった むれを たべよう',d0:4e21,goal:3e24,bites:81,skin:0xff9fd0,fill:'ぎんが',cols:[0xffffff,0xaee7ff,0xffe2a8],fk:'glow'},
+ {n:'うちゅうの あみめ',sub:'ぎんがが つながった おおきな かべを たべよう',d0:3e24,goal:1.3e26,bites:74,skin:0x9fffe0,fill:'ぎんがの むれ',cols:[0xffffff,0xaee7ff,0xffe2a8],fk:'glow'},
+ {n:'うちゅうの はて',sub:'みえる うちゅうを ぜんぶ ぱくり!',d0:1.3e26,goal:1.3e27,bites:40,skin:0xffffff,fill:'ぎんがの むれ',cols:[0xffffff,0xaee7ff,0xffe2a8],fk:'glow'}
+];
+const ITEMS=[
+ {k:'pollen',ch:0,n:'かふん',s:3e-5,kind:'spiky',c:0xffe45e,d:'はなから とぶ こな。はるに くしゃみが でるよ。'},
+ {k:'hair',ch:0,n:'かみのけ',s:8e-5,kind:'capsule',c:0x4a3426,d:'かみのけの ふとさは だいたい この くらい。'},
+ {k:'dust',ch:0,n:'ほこり',s:1e-4,kind:'rock',c:0xb8b0a2,d:'おへやの すみに たまる ふわふわ。'},
+ {k:'salt',ch:0,n:'しおの つぶ',s:3e-4,kind:'salt',c:0xffffff,d:'しおの ひとつぶ。よく みると しかくい かたちだよ。'},
+ {k:'sand',ch:0,n:'すなつぶ',s:5e-4,kind:'rock',c:0xe0c78f,d:'うみべの すな。ひとつぶ ひとつぶが いしの かけら。'},
+ {k:'meteoroid',ch:0,n:'ながれぼしの もと',s:2e-3,kind:'rock',c:0x8a8f99,d:'すなつぶ くらいの ちいさな いし。ちきゅうに おちて ひかるよ。'},
+ {k:'snow',ch:0,n:'ゆきの けっしょう',s:3e-3,kind:'salt',c:0xcfeaff,d:'ゆきの ひとつぶ。ほしの かたちを して いるよ。'},
+ {k:'paint',ch:1,n:'とそうの かけら',s:5e-3,kind:'shard',c:0xf4f4f4,d:'えいせいの ぬりものが はがれた かけら。ちいさくても とても はやいよ。'},
+ {k:'screw',ch:1,n:'ねじ',s:1.2e-2,kind:'screw',c:0xc9ccd4,d:'うちゅうで なくした ねじが ふわふわ ういているよ。'},
+ {k:'pebble',ch:1,n:'ちいさな いんせき',s:5e-2,kind:'rock',c:0x7b8190,d:'ながれぼしに なる まえの いし。'},
+ {k:'cube',ch:1,n:'キューブサット',s:.1,kind:'cube',c:0xd9a441,d:'10センチの ちいさな じんこうえいせい。'},
+ {k:'rshard',ch:1,n:'ロケットの かけら',s:.3,kind:'shard',c:0xc9ccd4,d:'こわれた ロケットの ぶひん。うちゅうゴミの なかまだよ。'},
+ {k:'smallsat',ch:1,n:'ちいさな えいせい',s:1,kind:'sat',c:0xd9a441,d:'ソーラーパネルを ひろげて ちきゅうの まわりを まわるよ。'},
+ {k:'meteorite',ch:1,n:'いんせき',s:1,kind:'rock',c:0x6f7683,d:'うちゅうから おちてきた いし。おちる ときは ながれぼしに なるよ。'},
+ {k:'rocketpart',ch:2,n:'ロケットの ぶひん',s:3,kind:'rocketpart',c:0xf4f4f4,c2:0xff9a4a,d:'やくめを おえた ロケットの うえの ぶぶんだよ。'},
+ {k:'hayabusa',ch:2,n:'はやぶさ',s:6,kind:'hayabusa',c:0xd9a441,d:'イトカワから すなを もちかえった たんさき。'},
+ {k:'hubble',ch:2,n:'ハッブルぼうえんきょう',s:13,kind:'hubble',c:0xc9ccd4,d:'うちゅうから ほしを みる おおきな ぼうえんきょう。'},
+ {k:'bigmeteor',ch:2,n:'おおきな いんせき',s:20,kind:'rock',c:0x6a6e78,d:'2013ねんに ロシアで ひかった いんせきは この くらい。'},
+ {k:'shuttle',ch:2,n:'スペースシャトル',s:37,kind:'shuttle',c:0xf4f4f4,d:'うちゅうと ちきゅうを いったりきたり した のりもの。'},
+ {k:'iss',ch:2,n:'ISS',s:109,kind:'iss',c:0xc9ccd4,d:'うちゅうに ある いえ。サッカーじょうと おなじくらいの おおきさ。'},
+ {k:'bennu',ch:3,n:'ベンヌ',s:490,kind:'top',c:0x5f5a57,d:'いしの かたまりの しょうわくせい。すなを ちきゅうに もちかえったよ。'},
+ {k:'itokawa',ch:3,n:'イトカワ',s:535,kind:'itokawa',c:0xa08a72,d:'はやぶさが いった しょうわくせい。ラッコみたいな かたち。'},
+ {k:'ryugu',ch:3,n:'リュウグウ',s:900,kind:'top',c:0x4f4a48,d:'はやぶさ2が いった しょうわくせい。そろばんだまの かたち。'},
+ {k:'comet',ch:3,n:'ほうきぼしの かく',s:4e3,kind:'itokawa',c:0x4a4540,d:'ロゼッタが ちかくで しらべた ほうきぼしの かたまり。'},
+ {k:'halley',ch:3,n:'ハレーすいせい',s:1.1e4,kind:'itokawa',c:0x3d3935,d:'76ねんに いちど ちきゅうに ちかづく ほうきぼし。'},
+ {k:'deimos',ch:3,n:'ダイモス',s:1.24e4,kind:'rock',c:0x948b80,d:'かせいの ちいさい ほうの つき。'},
+ {k:'phobos',ch:3,n:'フォボス',s:2.2e4,kind:'rock',c:0x7a6f66,d:'かせいの おおきい ほうの つき。じゃがいもに にているよ。'},
+ {k:'eros',ch:3,n:'エロス',s:3.4e4,kind:'itokawa',c:0xa08f7a,d:'ちきゅうの ちかくを とおる おおきな しょうわくせい。'},
+ {k:'vesta',ch:4,n:'ベスタ',s:5.25e5,kind:'rock',c:0x9a948c,d:'しょうわくせいたいの なかでも とくに おおきな ほし。'},
+ {k:'ceres',ch:4,n:'ケレス',s:9.4e5,kind:'planet',tex:'ceres',d:'しょうわくせいたいで いちばん おおきい わいわくせい。'},
+ {k:'pluto',ch:4,n:'めいおうせい',s:2.377e6,kind:'planet',tex:'pluto',d:'いまは わいわくせい。むかしは わくせいだったよ。'},
+ {k:'europa',ch:4,n:'エウロパ',s:3.12e6,kind:'planet',tex:'europa',d:'こおりの したに うみが あると いわれる もくせいの つき。'},
+ {k:'moon',ch:4,n:'つき',s:3.474e6,kind:'planet',tex:'moon',d:'ちきゅうの たった ひとつの つき。'},
+ {k:'io',ch:4,n:'イオ',s:3.64e6,kind:'planet',tex:'io',d:'かざんが たくさん ある もくせいの つき。'},
+ {k:'callisto',ch:4,n:'カリスト',s:4.82e6,kind:'planet',tex:'callisto',d:'クレーターだらけの もくせいの つき。'},
+ {k:'titan',ch:4,n:'タイタン',s:5.15e6,kind:'planet',tex:'titan',d:'あつい くうきが ある どせいの つき。'},
+ {k:'ganymede',ch:4,n:'ガニメデ',s:5.27e6,kind:'planet',tex:'ganymede',d:'たいようけいで いちばん おおきな つき。'},
+ {k:'mercury',ch:5,n:'すいせい',s:4.88e6,kind:'planet',tex:'mercury',d:'たいように いちばん ちかい わくせい。'},
+ {k:'mars',ch:5,n:'かせい',s:6.78e6,kind:'planet',tex:'mars',d:'あかい ほし。フォボスと ダイモスが ついて いるよ。'},
+ {k:'venus',ch:5,n:'きんせい',s:1.21e7,kind:'planet',tex:'venus',d:'ちきゅうと おなじくらいの おおきさ。とても あつい ほしだよ。'},
+ {k:'earth',ch:5,n:'ちきゅう',s:1.274e7,kind:'planet',tex:'earth',d:'ぼくたちが すんでいる ほし。'},
+ {k:'neptune',ch:5,n:'かいおうせい',s:4.92e7,kind:'planet',tex:'neptune',d:'あおい いろの とおい ほし。'},
+ {k:'uranus',ch:5,n:'てんのうせい',s:5.07e7,kind:'planet',tex:'uranus',d:'よこに ころがる ように まわる ほし。'},
+ {k:'saturn',ch:5,n:'どせい',s:1.165e8,kind:'planet',tex:'saturn',d:'おおきな わが ある ほし。'},
+ {k:'jupiter',ch:5,n:'もくせい',s:1.398e8,kind:'planet',tex:'jupiter',d:'たいようけいで いちばん おおきな わくせい。'},
+ {k:'sun',ch:6,n:'たいよう',s:1.3927e9,kind:'planet',tex:'sun',d:'ちきゅうに ひかりと あたたかさを くれる ほし。'},
+ {k:'sirius',ch:6,n:'シリウス',s:2.38e9,kind:'planet',tex:'sirius',d:'よぞらで いちばん あかるく みえる ほし。'},
+ {k:'vega',ch:7,n:'ベガ',s:3.9e9,kind:'planet',tex:'starB',d:'たなばたの おりひめぼし。'},
+ {k:'arcturus',ch:7,n:'アークトゥルス',s:3.5e10,kind:'planet',tex:'starO',d:'はるの よぞらで あかるい オレンジいろの ほし。'},
+ {k:'aldebaran',ch:7,n:'アルデバラン',s:6.1e10,kind:'planet',tex:'starO',d:'おうしざの あかい ひとみ。'},
+ {k:'rigel',ch:7,n:'リゲル',s:1.1e11,kind:'planet',tex:'starB',d:'オリオンざの あおじろい ほし。'},
+ {k:'antares',ch:7,n:'アンタレス',s:9.5e11,kind:'planet',tex:'starR',d:'さそりざの あかい ほし。たいように くらべて とても おおきいよ。'},
+ {k:'betelgeuse',ch:7,n:'ベテルギウス',s:1e12,kind:'planet',tex:'starR',d:'オリオンざの あかい ほし。いつか ばくはつするよ。'},
+ {k:'vycma',ch:7,n:'おおいぬざ VY',s:2e12,kind:'planet',tex:'starR',d:'しられている なかでも とても おおきな ほしの ひとつ。'},
+ {k:'solsys',ch:8,n:'たいようけい',s:9e12,kind:'system',c:0xffd27a,d:'たいようと わくせいたちの なかま。かいおうせいの みちまでを あわせた おおきさ。'},
+ {k:'oort',ch:8,n:'オールトのくも',s:2e16,kind:'nebula',c:0x9fc8ff,c2:0xffffff,d:'ほうきぼしの ふるさとと いわれる、とおい とおい くも。'},
+ {k:'orion',ch:8,n:'オリオンだいせいうん',s:2.3e17,kind:'nebula',c:0xff7aa8,c2:0x6fa8ff,d:'あたらしい ほしが うまれる ガスの くも。'},
+ {k:'pleiades',ch:8,n:'すばる(プレアデス)',s:8e17,kind:'cluster',c:0x9fc8ff,c2:16,d:'あおじろい ほしが あつまった せいだん。'},
+ {k:'omegacen',ch:8,n:'オメガ ケンタウリ',s:1.4e18,kind:'cluster',c:0xffe2a8,c2:44,d:'なんひゃくまんこも の ほしが ボールのように あつまっているよ。'},
+ {k:'smc',ch:9,n:'ちいさい マゼランぐも',s:6.6e19,kind:'galaxy',tex:'smc',d:'あまのがわぎんがの おともだち。ちいさな ぎんが。'},
+ {k:'lmc',ch:9,n:'おおきい マゼランぐも',s:1.3e20,kind:'galaxy',tex:'lmc',d:'みなみの そらに みえる ちかくの ぎんが。'},
+ {k:'tri',ch:9,n:'さんかくざぎんが',s:5.7e20,kind:'galaxy',tex:'tri',d:'うずまきの かたちを した ぎんが。'},
+ {k:'milky',ch:9,n:'あまのがわぎんが',s:9.5e20,kind:'galaxy',tex:'milky',d:'ぼくたちの たいようが ある ぎんが。'},
+ {k:'andromeda',ch:9,n:'アンドロメダぎんが',s:2.1e21,kind:'galaxy',tex:'andro',d:'あまのがわぎんがに いちばん ちかい おおきな ぎんが。'},
+ {k:'ic1101',ch:10,n:'IC 1101',s:3.8e22,kind:'galaxy',tex:'ell',d:'しられている なかで いちばん おおきい ぎんがの ひとつ。'},
+ {k:'localgroup',ch:10,n:'ローカルグループ',s:9.5e22,kind:'gcluster',c2:10,d:'あまのがわぎんがと アンドロメダぎんがの なかまたち。'},
+ {k:'virgo',ch:10,n:'おとめざぎんがだん',s:1.4e23,kind:'gcluster',c2:16,d:'ぎんがが せんこ いじょうも あつまっているよ。'},
+ {k:'coma',ch:10,n:'かみのけざぎんがだん',s:2e23,kind:'gcluster',c2:24,d:'ぎんがが 1000こ いじょう あつまった おおきな むれ。'},
+ {k:'laniakea',ch:11,n:'ラニアケア ちょうぎんがだん',s:4.9e24,kind:'web',c:0x9fc8ff,d:'ぎんがだんが つながった、とても おおきな なかま。ぼくたちの ぎんがも ここに いるよ。'},
+ {k:'sgw',ch:11,n:'スローン グレートウォール',s:1.3e25,kind:'web',c:0xffe2a8,d:'ぎんがが かべのように ならんだ、うちゅうの おおきな あみめ。'},
+ {k:'hcb',ch:11,n:'ヘルクレスざ・かんむりざ グレートウォール',s:9.5e25,kind:'web',c:0xc8a8ff,d:'みつかっている なかで いちばん おおきいと いわれる、ぎんがの かべ。'},
+ {k:'cosweb',ch:12,n:'うちゅうの あみめ',s:2.5e26,kind:'web',c:0xaee7ff,d:'ぎんがが あみの めのように つながっている ようすだよ。'},
+ {k:'universe',ch:12,n:'みえる うちゅう ぜんぶ',s:8.8e26,kind:'cluster',c:0xaee7ff,c2:120,d:'ちきゅうから みえる うちゅうの はんい。ぎんがは かぞえきれない ほど あるよ。'}
+];
+
+/* ---------- 長さの表示 ---------- */
+function trimNum(v){
+  if(v>=1000) return Math.round(v).toLocaleString('en-US');
+  let s=v>=100?String(Math.round(v)):v>=10?v.toFixed(1):v.toFixed(2);
+  if(s.indexOf('.')>=0) s=s.replace(/0+$/,'').replace(/\.$/,'');
+  return s;
+}
+function fmtLen(m){
+  let v,u;
+  if(m<1e-9){v=m/1e-12;u='ピコメートル';}
+  else if(m<1e-6){v=m/1e-9;u='ナノメートル';}
+  else if(m<1e-3){v=m/1e-6;u='マイクロメートル';}
+  else if(m<1e-2){v=m/1e-3;u='ミリメートル';}
+  else if(m<1){v=m/1e-2;u='センチメートル';}
+  else if(m<1000){v=m;u='メートル';}
+  else if(m<1e7){v=m/1000;u='キロメートル';}
+  else if(m<1e11){v=m/1e7;u='まんキロメートル';}
+  else if(m<9.46e14){v=m/1e11;u='おくキロメートル';}
+  else if(m<9.46e19){v=m/9.46e15;u='こうねん';}
+  else if(m<9.46e23){v=m/9.46e19;u='まんこうねん';}
+  else {v=m/9.46e23;u='おくこうねん';}
+  return trimNum(v)+' '+u;
+}
+function jpCount(r){
+  if(r>=1e8) return trimNum(r/1e8)+'おく';
+  if(r>=1e4) return trimNum(r/1e4)+'まん';
+  return trimNum(r);
+}
+function nearestLike(D){
+  let best=null;
+  for(const it of ITEMS){ if(it.s<=D*1.1 && (!best||it.s>best.s)) best=it; }
+  if(!best) return 'ちいさい ちいさい はじまり';
+  const r=D/best.s;
+  if(r<1.35) return best.n+' と おなじくらい';
+  return best.n+' の '+jpCount(r)+'ばい';
+}
+
+/* ---------- 乱数・形状 ---------- */
+let seedV=12345;
+function rnd(){seedV=(seedV*1664525+1013904223)>>>0;return seedV/4294967296;}
+function hash3(x,y,z){const s=Math.sin(x*127.1+y*311.7+z*74.7)*43758.5453;return s-Math.floor(s);}
+function roughGeo(r,detail,amp,sx,sy,sz,bulge){
+  const g=new THREE.IcosahedronGeometry(r,detail);
+  const p=g.attributes.position;
+  for(let i=0;i<p.count;i++){
+    let x=p.getX(i),y=p.getY(i),z=p.getZ(i);
+    const h=hash3(Math.round(x*1000)/1000,Math.round(y*1000)/1000,Math.round(z*1000)/1000);
+    const k=1+(h-.5)*2*amp;
+    let bx=1;
+    if(bulge){ bx=1+bulge*Math.max(0,1-Math.abs(y)/(r*.55)); }
+    p.setXYZ(i,x*k*sx*bx,y*k*sy,z*k*sz*bx);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
+/* ---------- 3D シーン ---------- */
+const canvas=$('gl');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
+renderer.setClearColor(0x000000,0);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(40,1,.1,400);
+scene.add(new THREE.AmbientLight(0xbfc8ff,.65));
+const sun=new THREE.DirectionalLight(0xffffff,.95); sun.position.set(4,12,6); scene.add(sun);
+const holeLight=new THREE.PointLight(0xff9a40,1.4,14); holeLight.position.set(0,1.6,0); scene.add(holeLight);
+const world=new THREE.Group(); scene.add(world);
+
+const TILT=1.0; // カメラの見下ろし角(ラジアン)
+let camDist=30, zoomF=1;
+function resize(){
+  const w=window.innerWidth,h=window.innerHeight;
+  renderer.setSize(w,h,false);
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+  const th=Math.tan(camera.fov*Math.PI/360);
+  camDist=8.2/(th*Math.min(camera.aspect,1));
+}
+window.addEventListener('resize',resize); resize();
+function placeCamera(){
+  const d=camDist*zoomF;
+  camera.position.set(0,d*Math.sin(TILT),d*Math.cos(TILT));
+  camera.lookAt(0,0,0);
+}
+
+/* 共有ジオメトリとマテリアル */
+const G={
+  sph:new THREE.SphereGeometry(.5,16,12),
+  plane:new THREE.PlaneGeometry(1,1),
+  orbit:new THREE.TorusGeometry(1,.012,6,72),
+  sph24:new THREE.SphereGeometry(.5,28,18),
+  satRing:new THREE.RingGeometry(.62,.98,56),
+  box:new THREE.BoxGeometry(1,1,1),
+  cyl:new THREE.CylinderGeometry(.5,.5,1,14),
+  cone:new THREE.ConeGeometry(.5,1,14),
+  ring:new THREE.TorusGeometry(.72,.03,6,44),
+  rock:[],shard:[],ast:{}
+};
+for(let i=0;i<6;i++) G.rock.push(roughGeo(.5,1,.3,1,1,1));
+for(let i=0;i<4;i++){const g=roughGeo(.5,0,.3,1,.2,.65); G.shard.push(g);}
+G.ast.itokawa=roughGeo(.5,2,.16,1,.46,.56);
+G.ast.top=roughGeo(.5,2,.07,1,.86,1,.14);
+G.ast.spiky=roughGeo(.5,1,.45,1,1,1);
+
+const matCache={};
+function mat(c,e,m,r){
+  e=e===undefined?.22:e; m=m===undefined?.15:m; r=r===undefined?.7:r;
+  const k=c+'|'+e+'|'+m+'|'+r;
+  return matCache[k]||(matCache[k]=new THREE.MeshStandardMaterial({color:c,emissive:c,emissiveIntensity:e,roughness:r,metalness:m,flatShading:true}));
+}
+function cloudMat(c){
+  const k='cl'+c;
+  return matCache[k]||(matCache[k]=new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:.28,depthWrite:false}));
+}
+function basicMat(c){
+  const k='bm'+c;
+  return matCache[k]||(matCache[k]=new THREE.MeshBasicMaterial({color:c}));
+}
+const glowTex=(function(){
+  const c=document.createElement('canvas'); c.width=c.height=64;
+  const x=c.getContext('2d'); const g=x.createRadialGradient(32,32,0,32,32,32);
+  g.addColorStop(0,'rgba(255,255,255,1)'); g.addColorStop(.35,'rgba(255,255,255,.35)'); g.addColorStop(1,'rgba(255,255,255,0)');
+  x.fillStyle=g; x.fillRect(0,0,64,64);
+  return new THREE.CanvasTexture(c);
+})();
+function glowMat(c){
+  const k='gw'+c;
+  return matCache[k]||(matCache[k]=new THREE.SpriteMaterial({map:glowTex,color:c,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}));
+}
+const ringMat=new THREE.MeshBasicMaterial({color:0xff6a5a,transparent:true,opacity:.75});
+const ICOS=(function(){
+  const t=(1+Math.sqrt(5))/2, a=[];
+  [[-1,t,0],[1,t,0],[-1,-t,0],[1,-t,0],[0,-1,t],[0,1,t],[0,-1,-t],[0,1,-t],[t,0,-1],[t,0,1],[-t,0,-1],[-t,0,1]].forEach(v=>{
+    const l=Math.hypot(v[0],v[1],v[2]); a.push([v[0]/l,v[1]/l,v[2]/l]);
+  });
+  return a;
+})();
+
+/* 惑星のもよう(キャンバスで描く) */
+const texCache={};
+const satRingMat=new THREE.MeshBasicMaterial({color:0xd8c48a,transparent:true,opacity:.75,side:THREE.DoubleSide});
+function planetTex(st){
+  if(texCache[st]) return texCache[st];
+  const W=256,H=128,cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+  const x=cv.getContext('2d');
+  const fill=c=>{x.fillStyle=c;x.fillRect(0,0,W,H);};
+  const blobs=(c,n,a,b,al)=>{
+    x.globalAlpha=al===undefined?1:al; x.fillStyle=c;
+    for(let i=0;i<n;i++){const s=a+rnd()*(b-a); x.beginPath(); x.ellipse(rnd()*W,rnd()*H,s*1.5,s,rnd()*3,0,TAU); x.fill();}
+    x.globalAlpha=1;
+  };
+  const bands=(cols,wob)=>{
+    const h=H/cols.length;
+    for(let i=0;i<cols.length;i++){
+      x.fillStyle=cols[i]; x.beginPath(); x.moveTo(0,i*h);
+      for(let u=0;u<=W;u+=8) x.lineTo(u,i*h+Math.sin(u*.06+i)*wob);
+      x.lineTo(W,(i+1)*h+4); x.lineTo(0,(i+1)*h+4); x.closePath(); x.fill();
+    }
+  };
+  const craters=(c,n,a,b)=>{
+    x.strokeStyle=c; x.lineWidth=1.5;
+    for(let i=0;i<n;i++){
+      const s=a+rnd()*(b-a), cx=rnd()*W, cy=rnd()*H;
+      x.beginPath(); x.arc(cx,cy,s,0,TAU); x.stroke();
+      x.globalAlpha=.25; x.fillStyle=c; x.fill(); x.globalAlpha=1;
+    }
+  };
+  switch(st){
+    case 'earth': fill('#2c6fd8'); blobs('#4fae52',14,6,16); blobs('#3b8f43',8,3,8); blobs('#ffffff',16,3,8,.55); x.fillStyle='#fff'; x.fillRect(0,0,W,6); x.fillRect(0,H-6,W,6); break;
+    case 'mars': fill('#c4593a'); blobs('#8e3f2a',12,4,12,.7); blobs('#e07a52',10,4,10,.6); x.fillStyle='#f3e9e2'; x.fillRect(0,0,W,4); x.fillRect(0,H-4,W,4); break;
+    case 'venus': bands(['#f0d89a','#e5c682','#f3dfb0','#dcb86e','#f0d89a','#e8cd8f'],4); break;
+    case 'mercury': fill('#9b9690'); blobs('#807b75',18,3,9,.6); craters('#6f6a64',22,2,7); break;
+    case 'jupiter': bands(['#e3c9a3','#b98a5e','#eedfc4','#a8683e','#e6cfa8','#c49568','#efe0c6','#b07a52','#e0c39a'],3); x.fillStyle='#c7503a'; x.beginPath(); x.ellipse(170,80,14,8,0,0,TAU); x.fill(); break;
+    case 'saturn': bands(['#ecdcae','#d6c08a','#f1e4bd','#cdb47a','#e8d6a2','#d9c48c'],2); break;
+    case 'uranus': bands(['#92dfe5','#86d3da','#98e3e8','#88d6dc'],1); break;
+    case 'neptune': fill('#3358cf'); bands(['#3a62d6','#2d4fc2','#4170e0','#2f55c8','#3a62d6'],3); blobs('#ffffff',5,2,6,.5); break;
+    case 'moon': fill('#bdbdbd'); blobs('#9d9d9d',16,5,14,.7); craters('#8d8d8d',24,2,8); break;
+    case 'io': fill('#e8d34c'); blobs('#f2e88a',12,4,10,.6); blobs('#c2552a',10,2,6,.8); blobs('#3a2a22',6,1,3,.9); break;
+    case 'europa': fill('#e9e2d4'); x.strokeStyle='#a0714f'; x.lineWidth=1.5; for(let i=0;i<14;i++){x.beginPath(); x.moveTo(rnd()*W,rnd()*H); x.quadraticCurveTo(rnd()*W,rnd()*H,rnd()*W,rnd()*H); x.stroke();} break;
+    case 'ganymede': fill('#9a9288'); blobs('#b9b1a6',14,5,14,.7); blobs('#6f675e',10,4,10,.6); craters('#cccccc',10,2,5); break;
+    case 'callisto': fill('#6c625a'); craters('#c9c2b8',34,1.5,5); blobs('#554c45',10,4,10,.6); break;
+    case 'titan': bands(['#dcaa4c','#d19a37','#e0b25a','#d29d3c'],2); break;
+    case 'pluto': fill('#cdb59c'); blobs('#a8836a',12,4,12,.7); x.fillStyle='#efe3d6'; x.beginPath(); x.ellipse(110,70,22,16,0,0,TAU); x.fill(); break;
+    case 'ceres': fill('#8b8b8b'); blobs('#707070',14,3,9,.6); craters('#666666',20,2,6); blobs('#ffffff',3,1,2,.9); break;
+    case 'starO': fill('#ff9a3c'); blobs('#ffc27a',40,3,9,.7); blobs('#e0661c',30,3,9,.6); break;
+    case 'starR': fill('#ff5a3a'); blobs('#ff8a5a',40,3,9,.7); blobs('#b82a18',30,3,9,.6); break;
+    case 'starB': fill('#9fc2ff'); blobs('#ffffff',40,3,9,.7); blobs('#6f9cff',30,3,9,.6); break;
+    case 'sun': fill('#ffae26'); blobs('#ffd45e',40,3,9,.7); blobs('#ff8a1c',30,3,9,.6); break;
+    case 'sirius': fill('#c4dcff'); blobs('#ffffff',40,3,9,.7); blobs('#9fc2ff',30,3,9,.6); break;
+    default: fill('#999999');
+  }
+  return (texCache[st]=new THREE.CanvasTexture(cv));
+}
+function planetMat(st){
+  const k='pl'+st;
+  if(matCache[k]) return matCache[k];
+  const t=planetTex(st);
+  return (matCache[k]=new THREE.MeshStandardMaterial({map:t,emissiveMap:t,emissive:0xffffff,emissiveIntensity:.38,roughness:.95,metalness:0}));
+}
+
+
+const STARS={sun:0xffb347,sirius:0x9fc2ff,starO:0xffa04a,starR:0xff5a3a,starB:0x8fb4ff};
+const orbitMat=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.4});
+function galaxyTex(st){
+  const key='gx'+st; if(texCache[key]) return texCache[key];
+  const SZ=256, cv=document.createElement('canvas'); cv.width=cv.height=SZ;
+  const x=cv.getContext('2d'); x.translate(SZ/2,SZ/2); x.globalCompositeOperation='lighter';
+  const T={milky:{arms:4,tw:2.6,col:'255,236,190',arm:'170,200,255',b:.2,n:2800},
+    andro:{arms:2,tw:2.2,col:'255,230,190',arm:'200,210,255',b:.28,n:2600},
+    tri:{arms:2,tw:3.2,col:'220,235,255',arm:'150,190,255',b:.1,n:2300},
+    lmc:{arms:1,tw:1.2,col:'255,240,230',arm:'190,210,255',b:.1,n:1900},
+    ell:{arms:0,tw:0,col:'255,225,180',arm:'255,215,170',b:.3,n:2600},
+    smc:{arms:0,tw:0,col:'255,240,230',arm:'190,210,255',b:.12,n:1500}}[st]||{arms:2,tw:2,col:'255,240,220',arm:'190,210,255',b:.15,n:2000};
+  let g=x.createRadialGradient(0,0,0,0,0,SZ/2); g.addColorStop(0,'rgba('+T.arm+',.2)'); g.addColorStop(1,'rgba('+T.arm+',0)');
+  x.fillStyle=g; x.beginPath(); x.arc(0,0,SZ/2,0,TAU); x.fill();
+  const cr=SZ*T.b*1.6;
+  g=x.createRadialGradient(0,0,0,0,0,cr); g.addColorStop(0,'rgba('+T.col+',.95)'); g.addColorStop(1,'rgba('+T.col+',0)');
+  x.fillStyle=g; x.beginPath(); x.arc(0,0,cr,0,TAU); x.fill();
+  for(let i=0;i<T.n;i++){
+    const t=Math.pow(rnd(),.7);
+    let th,rr=t*SZ*.46;
+    if(T.arms>0){ th=(i%T.arms)*TAU/T.arms+t*T.tw*Math.PI+(rnd()-.5)*.55; }
+    else { th=rnd()*TAU; rr=rr*(.3+rnd()*.7); }
+    const a=.25+rnd()*.6, sz=.6+rnd()*1.6*(1-t*.4);
+    x.fillStyle='rgba('+(rnd()<.7?T.arm:T.col)+','+a+')';
+    x.fillRect(Math.cos(th)*rr,Math.sin(th)*rr,sz,sz);
+  }
+  return (texCache[key]=new THREE.CanvasTexture(cv));
+}
+
+/* 形をつくる。直径がおよそ1の Group を返す */
+function build(kind,c,c2,seed,tex){
+  const g=new THREE.Group();
+  const add=(geo,m,x,y,z,sx,sy,sz,rz,rx)=>{
+    const o=new THREE.Mesh(geo,m);
+    o.position.set(x||0,y||0,z||0); o.scale.set(sx||1,sy===undefined?(sx||1):sy,sz===undefined?(sx||1):sz);
+    if(rz) o.rotation.z=rz; if(rx) o.rotation.x=rx;
+    g.add(o); return o;
+  };
+  const H=Math.PI/2;
+  switch(kind){
+    case 'sphere': add(G.sph,mat(c,.32)); break;
+    case 'glow': {
+      add(G.sph,basicMat(c),0,0,0,.5,.5,.5);
+      const sp=new THREE.Sprite(glowMat(c)); sp.scale.set(1.9,1.9,1); g.add(sp);
+      break; }
+    case 'nucleus':
+      for(let i=0;i<7;i++){
+        const a=rnd()*TAU,b=Math.acos(2*rnd()-1),r=.2*Math.cbrt(rnd());
+        add(G.sph,mat(i%2?c2:c,.3),r*Math.sin(b)*Math.cos(a),r*Math.cos(b),r*Math.sin(b)*Math.sin(a),.46,.46,.46);
+      }
+      break;
+    case 'atom':
+      add(G.sph,cloudMat(c),0,0,0,1,1,1);
+      add(G.sph,mat(c,.5),0,0,0,.22,.22,.22);
+      add(G.sph,basicMat(c2),.4,0,0,.13,.13,.13);
+      add(G.sph,basicMat(c2),-.3,.05,.26,.1,.1,.1);
+      break;
+    case 'molecule': {
+      add(G.sph,mat(c,.3),0,0,0,.36,.36,.36);
+      const P=[[.3,.12,.06],[-.28,.18,.1],[.05,-.3,-.18],[-.12,.05,-.32],[.22,-.1,.28]];
+      for(let i=0;i<P.length;i++) add(G.sph,mat(c2,.3),P[i][0],P[i][1],P[i][2],.26,.26,.26);
+      break; }
+    case 'virus':
+      add(G.sph,mat(c,.28),0,0,0,.64,.64,.64);
+      for(let i=0;i<ICOS.length;i++) add(G.sph,mat(0xffe08a,.4),ICOS[i][0]*.36,ICOS[i][1]*.36,ICOS[i][2]*.36,.2,.2,.2);
+      break;
+    case 'capsule':
+      add(G.cyl,mat(c,.25),0,0,0,.44,.5,.44,H);
+      add(G.sph,mat(c,.25),.25,0,0,.44,.44,.44);
+      add(G.sph,mat(c,.25),-.25,0,0,.44,.44,.44);
+      break;
+    case 'spiky': add(G.ast.spiky,mat(c,.3),0,0,0,1,1,1); break;
+    case 'rock': add(G.rock[seed%6],mat(c,.12,.05,.9)); break;
+    case 'shard': add(G.shard[seed%4],mat(c,.2,.55,.4),0,0,0,1.5,1.5,1.5); break;
+    case 'screw':
+      add(G.cyl,mat(c,.2,.7,.35),0,0,0,.18,.85,.18,H);
+      add(G.cyl,mat(c,.2,.7,.35),.42,0,0,.4,.14,.4,H);
+      break;
+    case 'cube':
+      add(G.box,mat(c,.25,.5,.4),0,0,0,.62,.62,.62);
+      add(G.cyl,mat(0xdddddd,.2),0,.45,0,.03,.4,.03);
+      break;
+    case 'sat':
+      add(G.box,mat(c,.3,.6,.35),0,0,0,.34,.34,.5);
+      add(G.box,mat(0x2b4fb0,.45,.3,.3),.33,0,0,.4,.02,.3);
+      add(G.box,mat(0x2b4fb0,.45,.3,.3),-.33,0,0,.4,.02,.3);
+      break;
+    case 'hubble':
+      add(G.cyl,mat(c,.3,.6,.35),0,0,0,.34,.8,.34,H);
+      add(G.cyl,mat(0x333a4a,.2),.42,0,0,.3,.06,.3,H);
+      add(G.box,mat(0x2b4fb0,.45),0,0,.28,.1,.02,.34);
+      add(G.box,mat(0x2b4fb0,.45),0,0,-.28,.1,.02,.34);
+      break;
+    case 'rocketpart':
+      add(G.cyl,mat(c,.3,.3,.5),-.05,0,0,.5,.8,.5,H);
+      add(G.cone,mat(c2,.3),.5,0,0,.5,.32,.5,-H);
+      break;
+    case 'hayabusa':
+      add(G.box,mat(0xd9a441,.35,.6,.35),0,0,0,.26,.26,.3);
+      add(G.box,mat(0x233f93,.5,.3,.3),.36,0,0,.44,.015,.28);
+      add(G.box,mat(0x233f93,.5,.3,.3),-.36,0,0,.44,.015,.28);
+      add(G.cyl,mat(0xffffff,.45),0,.16,0,.34,.03,.34);
+      add(G.cyl,mat(0xcccccc,.3),0,0,.22,.06,.2,.06,0,H);
+      break;
+    case 'shuttle':
+      add(G.cyl,mat(0xf4f4f4,.35,.1,.6),0,0,0,.15,.8,.15,H);
+      add(G.cone,mat(0x2a2d36,.2),.46,0,0,.15,.2,.15,-H);
+      add(G.box,mat(0xf4f4f4,.35),-.18,-.03,0,.34,.02,.8);
+      add(G.box,mat(0x2a2d36,.2),-.4,.12,0,.14,.22,.02);
+      break;
+    case 'iss':
+      add(G.box,mat(0xaab0bd,.3,.5,.4),0,0,0,.98,.04,.04);
+      add(G.cyl,mat(0xe6e8ee,.3),0,0,0,.08,.46,.08,0,H);
+      [-.44,-.3,.3,.44].forEach(x=>{
+        add(G.box,mat(0xd8a43a,.5,.3,.3),x,0,.2,.1,.01,.36);
+        add(G.box,mat(0xd8a43a,.5,.3,.3),x,0,-.2,.1,.01,.36);
+      });
+      add(G.box,mat(0xffffff,.4),.1,0,-.14,.16,.01,.2);
+      break;
+    case 'itokawa': add(G.ast.itokawa,mat(c,.14,.05,.95)); break;
+    case 'salt': add(G.box,mat(c,.3,.1,.5),0,0,0,.62,.62,.62,.5,.4); break;
+    case 'galaxy': {
+      const gm=new THREE.MeshBasicMaterial({map:galaxyTex(tex),transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide});
+      const pl=new THREE.Mesh(G.plane,gm); pl.rotation.x=-Math.PI/2+.45; pl.scale.set(1.15,1.15,1.15); g.add(pl);
+      break; }
+    case 'system': {
+      add(G.sph,basicMat(0xffd27a),0,0,0,.12,.12,.12);
+      const sp=new THREE.Sprite(glowMat(0xffb347)); sp.scale.set(.5,.5,1); g.add(sp);
+      const PC=[0xa9a39b,0xe8c987,0x6fa8ff,0xd26a4a,0xe3cf9b,0x8fe0e6];
+      [.2,.32,.44,.56,.7,.86].forEach((r,i)=>{
+        const rr=r*.5, o=new THREE.Mesh(G.orbit,orbitMat); o.rotation.x=Math.PI/2; o.scale.set(rr,rr,rr); g.add(o);
+        add(G.sph,basicMat(PC[i]),Math.cos(i*1.7)*rr,0,Math.sin(i*1.7)*rr,.06,.06,.06);
+      });
+      break; }
+    case 'nebula': {
+      const NC=[c,c2||0x6fa8ff,0xffffff];
+      for(let i=0;i<7;i++){
+        const sp=new THREE.Sprite(glowMat(NC[i%3])), a=rnd()*TAU, r=.28*Math.sqrt(rnd()), s=.55+rnd()*.5;
+        sp.position.set(Math.cos(a)*r,.02,Math.sin(a)*r); sp.scale.set(s,s,1); g.add(sp);
+      }
+      for(let i=0;i<10;i++) add(G.sph,basicMat(0xffffff),(rnd()-.5)*.7,0,(rnd()-.5)*.7,.03,.03,.03);
+      break; }
+    case 'cluster': {
+      const n=typeof c2==='number'&&c2<200?c2:16;
+      for(let i=0;i<n;i++){
+        const a=rnd()*TAU,b=Math.acos(2*rnd()-1),r=.4*Math.cbrt(rnd()), s=.05+rnd()*.05;
+        add(G.sph,basicMat(rnd()<.25?0xffffff:c),r*Math.sin(b)*Math.cos(a),r*Math.cos(b)*.6,r*Math.sin(b)*Math.sin(a),s,s,s);
+      }
+      const hp=new THREE.Sprite(glowMat(c)); hp.scale.set(1.1,1.1,1); g.add(hp);
+      break; }
+    case 'gcluster': {
+      const n=typeof c2==='number'&&c2<100?c2:12, TX=['tri','andro','smc'];
+      for(let i=0;i<n;i++){
+        const tk=TX[i%3], mk='gm'+tk;
+        const gm=matCache[mk]||(matCache[mk]=new THREE.MeshBasicMaterial({map:galaxyTex(tk),transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
+        const pl=new THREE.Mesh(G.plane,gm), a=rnd()*TAU, b=Math.acos(2*rnd()-1), r=.36*Math.cbrt(rnd()), s=.16+rnd()*.12;
+        pl.position.set(r*Math.sin(b)*Math.cos(a),r*Math.cos(b)*.6,r*Math.sin(b)*Math.sin(a));
+        pl.rotation.set(-Math.PI/2+(rnd()-.5)*1.2,rnd()*TAU,0); pl.scale.set(s,s,s); g.add(pl);
+      }
+      const hp=new THREE.Sprite(glowMat(0xaee7ff)); hp.scale.set(1.3,1.3,1); g.add(hp);
+      break; }
+    case 'web': {
+      for(let f=0;f<4;f++){
+        const p0=[(rnd()-.5)*.9,(rnd()-.5)*.3,(rnd()-.5)*.9], p1=[(rnd()-.5)*.9,(rnd()-.5)*.3,(rnd()-.5)*.9], pc2=[(rnd()-.5)*.6,(rnd()-.5)*.3,(rnd()-.5)*.6];
+        for(let i=0;i<=14;i++){
+          const t=i/14, u=1-t, jx=(rnd()-.5)*.05;
+          const px=u*u*p0[0]+2*u*t*pc2[0]+t*t*p1[0]+jx, py=u*u*p0[1]+2*u*t*pc2[1]+t*t*p1[1], pz=u*u*p0[2]+2*u*t*pc2[2]+t*t*p1[2]+jx;
+          const s=.035+rnd()*.045;
+          add(G.sph,basicMat(rnd()<.3?0xffffff:c),px,py,pz,s,s,s);
+          if(i%4===0){ const sp=new THREE.Sprite(glowMat(c)); sp.position.set(px,py,pz); sp.scale.set(.32,.32,1); g.add(sp); }
+        }
+      }
+      break; }
+    case 'planet':
+      if(STARS[tex]){
+        add(G.sph24,new THREE.MeshBasicMaterial({map:planetTex(tex)}),0,0,0,1,1,1);
+        const sp=new THREE.Sprite(glowMat(STARS[tex])); sp.scale.set(2.4,2.4,1); g.add(sp);
+      }else{
+        add(G.sph24,planetMat(tex),0,0,0,1,1,1);
+        if(tex==='saturn'){
+          const rg=new THREE.Mesh(G.satRing,satRingMat); rg.rotation.x=-Math.PI/2+.32; g.add(rg);
+        }
+      }
+      break;
+    case 'top': add(G.ast.top,mat(c,.12,.05,.95)); break;
+    default: add(G.sph,mat(c,.25));
+  }
+  return g;
+}
+
+/* ---------- ブラックホール本体 ---------- */
+const hole=new THREE.Group(); scene.add(hole);
+const disc=new THREE.Mesh(new THREE.CircleGeometry(1,56),new THREE.MeshBasicMaterial({color:0x000000}));
+disc.rotation.x=-Math.PI/2; disc.position.y=.04; hole.add(disc);
+const glowCanvas=document.createElement('canvas'); glowCanvas.width=glowCanvas.height=512;
+(function(){
+  const x=glowCanvas.getContext('2d'); x.translate(256,256);
+  const g=x.createRadialGradient(0,0,100,0,0,256);
+  g.addColorStop(0,'rgba(255,255,255,0)');
+  g.addColorStop(.06,'rgba(255,255,255,1)');
+  g.addColorStop(.18,'rgba(255,255,255,.85)');
+  g.addColorStop(.5,'rgba(255,255,255,.28)');
+  g.addColorStop(1,'rgba(255,255,255,0)');
+  x.fillStyle=g; x.beginPath(); x.arc(0,0,256,0,TAU); x.fill();
+  x.globalCompositeOperation='lighter';
+  for(let i=0;i<7;i++){
+    x.save(); x.rotate(i*TAU/7);
+    x.strokeStyle='rgba(255,255,255,'+(.2+.14*(i%3))+')'; x.lineWidth=3+(i%3)*2;
+    x.beginPath(); x.arc(0,0,128+i*9,0,1.1+.2*(i%4)); x.stroke(); x.restore();
+  }
+})();
+const glow=new THREE.Mesh(new THREE.PlaneGeometry(4.6,4.6),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(glowCanvas),transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
+glow.rotation.x=-Math.PI/2; glow.position.y=.02; hole.add(glow);
+const glow2=new THREE.Mesh(new THREE.PlaneGeometry(3.3,3.3),new THREE.MeshBasicMaterial({map:glow.material.map,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,opacity:.85}));
+glow2.rotation.x=-Math.PI/2; glow2.position.y=.03; hole.add(glow2);
+const halo=new THREE.Mesh(new THREE.TorusGeometry(1.08,.035,8,72),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.35,blending:THREE.AdditiveBlending,depthWrite:false}));
+halo.rotation.x=-TILT; halo.position.y=.12; hole.add(halo);
+
+/* ---------- 宇宙のほこり(流れて見える背景) ---------- */
+const stars=[];
+function makeStars(count,size,par,y,col,op){
+  const pos=new Float32Array(count*3), base=[];
+  for(let i=0;i<count;i++){ const bx=(rnd()-.5)*90,bz=(rnd()-.5)*90; base.push(bx,bz); pos[i*3+1]=0; }
+  const geo=new THREE.BufferGeometry(); geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  const pts=new THREE.Points(geo,new THREE.PointsMaterial({color:col,size:size,transparent:true,opacity:op,depthWrite:false}));
+  pts.position.y=y; pts.frustumCulled=false; scene.add(pts);
+  stars.push({pts,base,par,count});
+}
+makeStars(520,.09,.22,-2.5,0x9fb0ff,.6);
+makeStars(260,.14,.55,-1.2,0xffffff,.85);
+let scrollX=0,scrollZ=0;
+function updateStars(){
+  for(const s of stars){
+    const p=s.pts.geometry.attributes.position.array;
+    for(let i=0;i<s.count;i++){
+      let x=s.base[i*2]-scrollX*s.par, z=s.base[i*2+1]-scrollZ*s.par;
+      x=((x+45)%90+90)%90-45; z=((z+45)%90+90)%90-45;
+      p[i*3]=x; p[i*3+2]=z;
+    }
+    s.pts.geometry.attributes.position.needsUpdate=true;
+  }
+}
+
+/* ---------- ゲーム状態 ---------- */
+const S={ch:0,D:CH[0].d0,hx:0,hz:0,vx:0,vz:0,objs:[],eaten:0,phase:'start',pulse:0,boost:false,t:0,prog:0,lives:3,inv:0,shake:0,feast:null,chItems:[],ts:1,combo:0,lastBite:0,mode:'adv',mt:0,maxCombo:0};
+const N_OBJ=56;
+const zukan=new Set(), cleared=new Set();
+let lastStage=0, soundOn=true, allOpen=false;
+const VALID=new Set(ITEMS.map(i=>i.k));
+try{JSON.parse(localStorage.getItem('bhg_zukan')||'[]').forEach(k=>{ if(VALID.has(k)) zukan.add(k); });}catch(e){}
+try{JSON.parse(localStorage.getItem('bhg_cleared')||'[]').forEach(k=>cleared.add(k));}catch(e){}
+try{lastStage=Math.min(CH.length-1,Math.max(0,parseInt(localStorage.getItem('bhg_last')||'0',10)||0));}catch(e){}
+try{soundOn=localStorage.getItem('bhg_sound')!=='off';}catch(e){}
+try{allOpen=localStorage.getItem('bhg_all')==='1';}catch(e){}
+function save(key,val){try{localStorage.setItem(key,val);}catch(e){}}
+const saveZ=()=>save('bhg_zukan',JSON.stringify(Array.from(zukan)));
+const saveC=()=>save('bhg_cleared',JSON.stringify(Array.from(cleared)));
+let rec={ta:{},ch:{},cb:{}};
+try{const r=JSON.parse(localStorage.getItem('bhg_rec')||'null'); if(r){ rec.ta=r.ta||{}; rec.ch=r.ch||{}; rec.cb=r.cb||{}; }}catch(e){}
+const saveR=()=>save('bhg_rec',JSON.stringify(rec));
+const fmtT=s=>{ const m=Math.floor(s/60), r=s-m*60; return m+':'+(r<10?'0':'')+r.toFixed(1); };
+let gameSave=null;
+try{ const g=JSON.parse(localStorage.getItem('bhg_save')||'null'); if(g&&g.ch>=0&&g.ch<CH.length&&g.D>0) gameSave=g; }catch(e){}
+let saveAt=0;
+function saveGame(force){
+  if(S.mode!=='adv'||(S.phase!=='play'&&S.phase!=='pause')) return;
+  const n=performance.now(); if(!force&&n-saveAt<2500) return; saveAt=n;
+  gameSave={ch:S.ch,D:S.D}; save('bhg_save',JSON.stringify(gameSave));
+}
+document.addEventListener('visibilitychange',()=>{ if(document.hidden) saveGame(true); });
+window.addEventListener('pagehide',()=>saveGame(true));
+const easeOut=t=>1-Math.pow(1-t,3);
+
+function getViewR(){
+  const th=Math.tan(camera.fov*Math.PI/360);
+  return Math.max(th*camDist*camera.aspect,th*camDist*1.25)*1.35;
+}
+
+/* ---------- 音: BGM(自動で鳴るやさしい曲)と効果音 ---------- */
+const A={ctx:null,master:null,bgm:null,se:null,timer:0,nextT:0,step:0};
+const PENT=[0,2,4,7,9];
+const ROOTS=[130.81,146.83,164.81,174.61,196,220,246.94];
+const CHORDS=[[0,4,7],[-3,0,4],[-7,-3,0],[-5,-1,2]];
+const fq=(root,semi)=>root*Math.pow(2,semi/12);
+function ensureAudio(){
+  try{
+    if(!A.ctx){
+      const C=window.AudioContext||window.webkitAudioContext; if(!C) return false;
+      A.ctx=new C();
+      A.master=A.ctx.createGain(); A.master.gain.value=soundOn?1:0; A.master.connect(A.ctx.destination);
+      A.bgm=A.ctx.createGain(); A.bgm.gain.value=.55; A.bgm.connect(A.master);
+      A.se=A.ctx.createGain(); A.se.gain.value=.9; A.se.connect(A.master);
+      A.nextT=A.ctx.currentTime+.2;
+      A.timer=setInterval(bgmTick,200);
+    }
+    if(A.ctx.state==='suspended') A.ctx.resume();
+    return true;
+  }catch(e){return false;}
+}
+function tone(dest,type,f,t,dur,vol,att){
+  const o=A.ctx.createOscillator(), g=A.ctx.createGain();
+  o.type=type; o.frequency.setValueAtTime(f,t);
+  g.gain.setValueAtTime(.0001,t);
+  g.gain.linearRampToValueAtTime(vol,t+(att||.01));
+  g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+  o.connect(g); g.connect(dest); o.start(t); o.stop(t+dur+.05);
+}
+function bgmTick(){
+  if(!A.ctx||!soundOn||A.ctx.state!=='running') { if(A.ctx) A.nextT=Math.max(A.nextT,A.ctx.currentTime); return; }
+  const SD=.36;
+  while(A.nextT<A.ctx.currentTime+.45){
+    const t=A.nextT, root=ROOTS[S.ch%ROOTS.length], pos=A.step%8, bar=Math.floor(A.step/8)%4, ch=CHORDS[bar];
+    if(pos===0){
+      for(let i=0;i<3;i++) tone(A.bgm,'triangle',fq(root*2,ch[i]),t,SD*8,.035,.9);
+      tone(A.bgm,'sine',fq(root,ch[0]),t,SD*4,.06,.05);
+    }
+    if(pos===4) tone(A.bgm,'sine',fq(root,ch[0]+7),t,SD*3,.04,.05);
+    if(Math.random()<.62){
+      const n=PENT[(Math.random()*5)|0]+(Math.random()<.4?12:0);
+      tone(A.bgm,'sine',fq(root*4,n),t,.9,.03,.01);
+    }
+    A.step++; A.nextT+=SD;
+  }
+}
+let comboN=0,lastEat=0;
+function seEat(r){
+  if(!A.ctx||!soundOn) return;
+  const now=performance.now();
+  if(now-lastEat<1300) comboN=Math.min(14,comboN+1); else comboN=0;
+  if(now-lastEat<60) { lastEat=now; return; }
+  lastEat=now;
+  const t=A.ctx.currentTime, semi=PENT[comboN%5]+12*Math.floor(comboN/5);
+  const f=fq(392,semi);
+  tone(A.se,'sine',f,t,.16,.07,.005);
+  tone(A.se,'triangle',f*2,t,.1,.025,.005);
+}
+function seNew(){
+  if(!A.ctx||!soundOn) return;
+  const t=A.ctx.currentTime;
+  tone(A.se,'triangle',880,t,.35,.08,.01); tone(A.se,'triangle',1318.5,t+.09,.45,.08,.01); tone(A.se,'sine',1760,t+.18,.5,.05,.01);
+}
+function seHit(){
+  if(!A.ctx||!soundOn) return;
+  const t=A.ctx.currentTime, o=A.ctx.createOscillator(), g=A.ctx.createGain();
+  o.type='sawtooth'; o.frequency.setValueAtTime(330,t); o.frequency.exponentialRampToValueAtTime(90,t+.28);
+  g.gain.setValueAtTime(.09,t); g.gain.exponentialRampToValueAtTime(.0001,t+.3);
+  o.connect(g); g.connect(A.se); o.start(t); o.stop(t+.32);
+}
+function seClear(){
+  if(!A.ctx||!soundOn) return;
+  const t=A.ctx.currentTime, N=[523.25,659.25,783.99,1046.5,1318.5];
+  N.forEach((f,i)=>{ tone(A.se,'triangle',f,t+i*.11,.6,.08,.01); });
+}
+function setSound(on){
+  soundOn=on; save('bhg_sound',on?'on':'off');
+  $('soundState').textContent=on?'ON':'OFF'; $('soundBtn').classList.toggle('off',!on);
+  if(A.master) A.master.gain.setTargetAtTime(on?1:0,A.ctx.currentTime,.05);
+}
+$('soundBtn').addEventListener('click',()=>{ ensureAudio(); setSound(!soundOn); });
+
+/* ---------- ものを出す ---------- */
+function pickSpec(D){
+  const ch=CH[S.ch], cands=[];
+  let threats=0; for(const o of S.objs) if(o.s>D*.72) threats++;
+  if(!S.feast&&threats<6&&rnd()<.7){
+    const big=ITEMS.filter(it=>{const r=it.s/D; return r>=.8&&r<=2.6;});
+    if(big.length&&rnd()<.6){ const it=big[(rnd()*big.length)|0]; return {item:it,s:it.s}; }
+    return {item:null,s:D*(1+rnd()*1.2)};
+  }
+  for(const it of ITEMS){const r=it.s/D; if(r>=.04&&r<=(S.feast?.72:1.15)) cands.push(it);}
+  if(cands.length&&rnd()<.5){
+    const w=cands.map(it=>it.s/D<=.72?1:.35); let tot=0; w.forEach(v=>tot+=v);
+    let x=rnd()*tot;
+    for(let i=0;i<cands.length;i++){x-=w[i]; if(x<=0) return {item:cands[i],s:cands[i].s};}
+    return {item:cands[0],s:cands[0].s};
+  }
+  const r=Math.exp(Math.log(.12)+rnd()*(Math.log(.6)-Math.log(.12)));
+  return {item:null,s:D*r};
+}
+function spawn(initial,spec,feast){
+  const D=S.D, ch=CH[S.ch], sp=spec||pickSpec(D), vr=getViewR();
+  const it=sp.item;
+  const kind=it?it.kind:ch.fk;
+  const col=it?(it.c||0xffffff):ch.cols[(rnd()*ch.cols.length)|0];
+  const g=build(kind,col,it?it.c2:0xffffff,(rnd()*100)|0,it&&it.tex);
+  const ring=new THREE.Mesh(G.ring,ringMat); ring.position.y=-.48; ring.rotation.x=Math.PI/2; g.add(ring);
+  const ang=rnd()*TAU; let R=initial?(2.5+rnd()*vr*.9):(vr*(.98+rnd()*.25));
+  if(sp.s>D*.72) R=Math.max(R,sp.s/D+5);
+  if(feast) R=Math.min(7,vr*.7);
+  const sd=(.04+rnd()*.2)*D, va=rnd()*TAU;
+  const o={g,ring,s:sp.s,item:it,x:S.hx+Math.cos(ang)*R*D/2,z:S.hz+Math.sin(ang)*R*D/2,
+    vx:Math.cos(va)*sd,vz:Math.sin(va)*sd,st:initial?'idle':'spawn',t:initial?1:0,spin:(rnd()-.5)*1.6,er:0,ea:0,cool:0};
+  if(feast){ o.feast=true; ring.visible=false; const fx=new THREE.Sprite(glowMat(0xffd27a)); fx.scale.set(2.6,2.6,1); g.add(fx); o.fx=fx; }
+  g.scale.setScalar(.0001);
+  world.add(g); S.objs.push(o);
+}
+function removeObj(i){const o=S.objs[i]; world.remove(o.g); S.objs.splice(i,1);}
+function clearObjs(){while(S.objs.length) removeObj(S.objs.length-1); S.feast=null;}
+
+/* ---------- アイコン(図鑑・ひょうじ用) ---------- */
+function hex(n){ return '#'+('000000'+(n||0xffffff).toString(16)).slice(-6); }
+function iconFor(it,px){
+  const W=px*2, cv=document.createElement('canvas'); cv.width=cv.height=W;
+  cv.style.width=cv.style.height=px+'px'; cv.className='ic';
+  const x=cv.getContext('2d'), C=W/2, col=hex(it.c), sd=it.k.length*7+it.k.charCodeAt(0);
+  const blob=(fill,n,r0,wob,sy)=>{
+    x.fillStyle=fill; x.beginPath();
+    for(let i=0;i<n;i++){
+      const a=i/n*TAU, r=r0*(1+(hash3(sd,i,1.3)-.5)*wob), X=C+Math.cos(a)*r, Y=C+Math.sin(a)*r*(sy||.92);
+      if(i) x.lineTo(X,Y); else x.moveTo(X,Y);
+    }
+    x.closePath(); x.fill();
+  };
+  const rect=(fill,cx,cy,w,h)=>{ x.fillStyle=fill; x.fillRect(C+cx*W-w*W/2,C+cy*W-h*W/2,w*W,h*W); };
+  const circle=(fill,cx,cy,r)=>{ x.fillStyle=fill; x.beginPath(); x.arc(C+cx*W,C+cy*W,r*W,0,TAU); x.fill(); };
+  const halo=(c,r)=>{ const g=x.createRadialGradient(C,C,0,C,C,C*r); g.addColorStop(0,c); g.addColorStop(1,'rgba(0,0,0,0)'); x.fillStyle=g; x.fillRect(0,0,W,W); };
+  const shade=()=>{ const g=x.createRadialGradient(C*.7,C*.65,C*.1,C,C,C*.95); g.addColorStop(0,'rgba(255,255,255,.28)'); g.addColorStop(.6,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,.55)'); x.fillStyle=g; x.beginPath(); x.arc(C,C,C*.8,0,TAU); x.fill(); };
+  switch(it.kind){
+    case 'planet': {
+      const img=planetTex(it.tex).image, glowC=STARS[it.tex];
+      if(glowC) halo(hex(glowC)+'aa',1);
+      x.save(); x.beginPath(); x.arc(C,C,C*.72,0,TAU); x.clip();
+      x.drawImage(img,64,0,128,128,C-C*.72,C-C*.72,C*1.44,C*1.44); x.restore();
+      if(!glowC) shade();
+      if(it.tex==='saturn'){ x.strokeStyle='#d8c48a'; x.lineWidth=W*.05; x.beginPath(); x.ellipse(C,C,C*.95,C*.28,-.3,0,TAU); x.stroke(); }
+      break; }
+    case 'galaxy': x.drawImage(galaxyTex(it.tex).image,0,0,W,W); break;
+    case 'gcluster': halo('rgba(174,231,255,.35)',.9); for(let i=0;i<7;i++){ const a=hash3(sd,i,1)*TAU, r=Math.sqrt(hash3(sd,i,2))*.32, sz=W*.34; x.drawImage(galaxyTex(['tri','andro','smc'][i%3]).image,C+Math.cos(a)*r*W-sz/2,C+Math.sin(a)*r*W-sz/2,sz,sz); } break;
+    case 'web': x.strokeStyle=col; x.lineWidth=2; x.globalAlpha=.7; for(let f=0;f<4;f++){ x.beginPath(); x.moveTo(C+(hash3(sd,f,1)-.5)*W*.9,C+(hash3(sd,f,2)-.5)*W*.9); x.quadraticCurveTo(C+(hash3(sd,f,3)-.5)*W*.5,C+(hash3(sd,f,4)-.5)*W*.5,C+(hash3(sd,f,5)-.5)*W*.9,C+(hash3(sd,f,6)-.5)*W*.9); x.stroke(); } x.globalAlpha=1; for(let i=0;i<14;i++) circle('#fff',(hash3(sd,i,7)-.5)*.8,(hash3(sd,i,8)-.5)*.8,.018); break;
+    case 'system':
+      halo('rgba(255,200,100,.6)',.4);
+      x.strokeStyle='rgba(255,255,255,.5)'; x.lineWidth=2;
+      [.3,.5,.7,.9].forEach(r=>{ x.beginPath(); x.ellipse(C,C,C*r,C*r*.6,0,0,TAU); x.stroke(); });
+      circle('#ffd27a',0,0,.1); circle('#6fa8ff',.3,.1,.05); circle('#d26a4a',-.4,-.12,.05);
+      break;
+    case 'nebula':
+      halo(hex(it.c)+'cc',.9); x.save(); x.translate(C*.3,-C*.1); halo(hex(it.c2||0x6fa8ff)+'aa',.7); x.restore();
+      for(let i=0;i<12;i++) circle('#fff',(hash3(sd,i,2)-.5)*1.4,(hash3(sd,i,5)-.5)*1.4,.015);
+      break;
+    case 'cluster':
+      halo(hex(it.c)+'66',.9);
+      for(let i=0;i<30;i++){ const a=hash3(sd,i,1)*TAU, r=Math.sqrt(hash3(sd,i,2))*.4; circle(hash3(sd,i,3)<.3?'#fff':col,Math.cos(a)*r,Math.sin(a)*r,.02+hash3(sd,i,4)*.03); }
+      break;
+    case 'glow': halo(col,1); circle('#fff',0,0,.12); break;
+    case 'sphere': circle(col,0,0,.3); shade(); break;
+    case 'sat': rect('#2b4fb0',-.3,0,.3,.14); rect('#2b4fb0',.3,0,.3,.14); rect(col,0,0,.24,.3); break;
+    case 'cube': rect(col,0,.05,.4,.4); rect('#ddd',0,-.28,.03,.18); rect('rgba(0,0,0,.18)',.08,.1,.24,.24); break;
+    case 'screw': rect(col,-.05,0,.6,.14); rect(col,.28,0,.14,.34); rect('rgba(0,0,0,.25)',-.05,.04,.6,.04); break;
+    case 'hayabusa': rect('#233f93',-.34,0,.26,.18); rect('#233f93',.34,0,.26,.18); rect('#d9a441',0,.04,.24,.26); circle('#fff',0,-.2,.12); break;
+    case 'hubble': rect('#2b4fb0',0,-.26,.12,.2); rect('#2b4fb0',0,.26,.12,.2); rect(col,0,0,.7,.26); rect('#333a4a',.3,0,.1,.22); break;
+    case 'shuttle': rect('#f4f4f4',0,0,.8,.18); x.fillStyle='#f4f4f4'; x.beginPath(); x.moveTo(C-.1*W,C); x.lineTo(C-.3*W,C+.3*W); x.lineTo(C+.05*W,C); x.fill(); rect('#2a2d36',.38,0,.1,.12); break;
+    case 'iss': rect('#aab0bd',0,0,.8,.06); [-.3,-.2,.2,.3].forEach(cx=>{ rect('#d8a43a',cx,-.2,.08,.28); rect('#d8a43a',cx,.2,.08,.28); }); rect('#e6e8ee',0,0,.1,.2); break;
+    case 'rocketpart': rect(col,-.05,0,.6,.3); x.fillStyle=hex(it.c2); x.beginPath(); x.moveTo(C+.25*W,C-.15*W); x.lineTo(C+.45*W,C); x.lineTo(C+.25*W,C+.15*W); x.fill(); break;
+    case 'capsule': rect(col,0,0,.5,.26); circle(col,.25,0,.13); circle(col,-.25,0,.13); break;
+    case 'salt': x.save(); x.translate(C,C); x.rotate(.5); x.fillStyle=col; x.fillRect(-.22*W,-.22*W,.44*W,.44*W); x.fillStyle='rgba(255,255,255,.4)'; x.fillRect(-.22*W,-.22*W,.44*W,.12*W); x.restore(); break;
+    case 'shard': x.fillStyle=col; x.beginPath(); x.moveTo(C-.4*W,C+.1*W); x.lineTo(C-.05*W,C-.3*W); x.lineTo(C+.4*W,C-.05*W); x.lineTo(C+.1*W,C+.3*W); x.closePath(); x.fill(); break;
+    case 'itokawa': case 'top': blob(col,14,C*.6,.45,it.kind==='itokawa'?.55:.8); blob('rgba(0,0,0,.25)',10,C*.3,.6,.7); break;
+    default: blob(col,13,C*.6,.45); x.fillStyle='rgba(255,255,255,.25)'; x.beginPath(); x.arc(C*.8,C*.75,C*.18,0,TAU); x.fill(); x.fillStyle='rgba(0,0,0,.25)'; x.beginPath(); x.arc(C*1.15,C*1.2,C*.14,0,TAU); x.fill();
+  }
+  return cv;
+}
+
+/* ---------- たべた! ---------- */
+let toastTimer=0,toastLock=0;
+function showToast(html,ms,isNew,it){
+  const now=performance.now();
+  if(!isNew&&now<toastLock) return;
+  const t=$('toast'); $('toastTx').innerHTML=html;
+  const ic=$('toastIc'); ic.innerHTML=''; if(it) ic.appendChild(iconFor(it,46));
+  t.classList.add('show');
+  if(isNew) toastLock=now+ms;
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),ms);
+}
+function onItem(it){
+  if(S.chItems.indexOf(it)<0) S.chItems.push(it);
+  const head='<span class="nm">'+it.n+'</span><span class="sz">'+fmtLen(it.s)+'</span>';
+  if(!zukan.has(it.k)){
+    zukan.add(it.k); saveZ(); updateZukanCount(); seNew();
+    showToast('<span class="nw">ずかんに のったよ!</span><div>'+head+'</div><div class="ds">'+it.d+'</div>',4800,true,it);
+  }else{
+    showToast('<div>'+head+'</div>',1100,false,it);
+  }
+}
+function bite(o){
+  const ch=CH[S.ch], r=o.s/S.D, base=Math.log(ch.goal/ch.d0)/ch.bites;
+  let gain=base*Math.pow(Math.max(.02,r)/.3,.6);
+  gain=Math.min(Math.max(gain,base*.65),base*2.0)*(o.item?1.25:.85);
+  S.D*=Math.exp(gain);
+  if(S.feast||o.feast) S.D=Math.min(S.D,ch.goal*1.05);
+  S.eaten++; S.pulse=1; seEat(r);
+  if(o.item) onItem(o.item);
+  const nw=performance.now(); S.combo=(nw-S.lastBite<1500)?S.combo+1:1; S.lastBite=nw;
+  if(S.combo>S.maxCombo) S.maxCombo=S.combo;
+  if(S.combo>=5&&S.combo%5===0) comboPop(S.combo);
+  if(S.mode==='ch'){ S.D=Math.min(S.D,ch.goal*.97); return; }
+  if(o.feast) chapterClear();
+  else if(S.D>=ch.goal&&S.phase==='play'&&!S.feast) startFeast();
+  else saveGame(false);
+}
+function comboPop(n){
+  const el=$('combo'); el.textContent='★ れんぞく '+n+'！'; el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
+}
+function confetti(n){
+  const sy=['★','✦','✧','☆'];
+  for(let i=0;i<n;i++){
+    const e=document.createElement('span'); e.className='conf'; e.textContent=sy[i%sy.length];
+    const a=Math.random()*6.283, r=90+Math.random()*190;
+    e.style.setProperty('--dx',Math.cos(a)*r+'px'); e.style.setProperty('--dy',Math.sin(a)*r+'px'); e.style.setProperty('--rot',(Math.random()*360-180)+'deg');
+    e.style.fontSize=(14+Math.random()*18)+'px'; e.style.color=['#ffd27a','#ffffff','#9fe8ff','#ffb0d8'][i%4];
+    document.body.appendChild(e); setTimeout(()=>e.remove(),1800);
+  }
+}
+
+/* ---------- ライフとダメージ ---------- */
+function drawLives(){
+  const el=$('lives'); el.innerHTML='';
+  for(let i=0;i<3;i++){ const h=document.createElement('span'); h.className='h'+(i<S.lives?'':' off'); h.textContent='♥'; el.appendChild(h); }
+}
+function hit(o,rx,rz,dist){
+  S.lives--; if(S.mode==='ch'){ S.lives=3; S.combo=0; } S.inv=2; S.shake=.8; S.pulse=.6; drawLives(); seHit();
+  const f=$('flash'); f.classList.add('on'); setTimeout(()=>f.classList.remove('on'),120);
+  const d=dist>.01?dist:1, ux=-rx/d, uz=-rz/d;
+  S.vx=ux*14*S.D; S.vz=uz*14*S.D;
+  o.vx=-ux*1.4*S.D; o.vz=-uz*1.4*S.D; o.cool=2.5;
+  if(S.lives<=0){ $('overTx').innerHTML=S.mode==='ta'?'だいじょうぶ。<b>つづけると +10びょう</b> たされるよ。おおきさは そのままだよ。':'だいじょうぶ。<b>さっきの ところから</b> つづけられるよ。おおきさも そのままだよ。'; S.phase='over'; hideStick(); inp.x=inp.z=0; S.boost=false; boostBtn.classList.remove('on'); setTimeout(()=>$('sOver').classList.add('open'),700); }
+}
+$('contBtn').addEventListener('click',()=>{
+  $('sOver').classList.remove('open');
+  const vr=getViewR(), inv=2/S.D;
+  for(let i=S.objs.length-1;i>=0;i--){
+    const o=S.objs[i];
+    if(o.s>S.D*.72&&Math.hypot((o.x-S.hx)*inv,(o.z-S.hz)*inv)<vr*.9) removeObj(i);
+  }
+  if(S.mode==='ta') S.mt+=10;
+  S.lives=3; S.inv=2.5; S.vx=S.vz=0; drawLives(); S.phase='play'; ensureAudio();
+});
+$('overStageBtn').addEventListener('click',()=>openSelect(S.mode));
+
+/* ---------- 1フレーム ---------- */
+const inp={x:0,z:0}, keys={};
+function step(dt){
+  S.t+=dt;
+  if(S.mode!=='adv'&&S.phase==='play'){ S.mt+=dt; if(S.mode==='ch'&&S.mt>=60) endChallenge(); } if(S.inv>0) S.inv-=dt; if(S.shake>0) S.shake=Math.max(0,S.shake-dt*2);
+  const ch=CH[S.ch], playing=S.phase==='play';
+  let D=S.D;
+  let ix=inp.x, iz=inp.z;
+  if(keys.l) ix-=1; if(keys.r) ix+=1; if(keys.u) iz-=1; if(keys.d) iz+=1;
+  const m0=Math.hypot(ix,iz); if(m0>1){ix/=m0; iz/=m0;}
+  const mag=playing?Math.min(1,Math.hypot(ix,iz)):0;
+  const boosting=playing&&S.boost&&mag>.05&&D>ch.d0*1.04;
+  const sp=1.3*D*(boosting?1.85:1);
+  const k=Math.min(1,dt*6);
+  S.vx+=((playing?ix:0)*sp-S.vx)*k; S.vz+=((playing?iz:0)*sp-S.vz)*k;
+  S.hx+=S.vx*dt; S.hz+=S.vz*dt;
+  scrollX+=S.vx*dt/D*2; scrollZ+=S.vz*dt/D*2;
+  if(boosting){ D*=1-.06*dt; if(D<ch.d0) D=ch.d0; S.D=D; }
+  const inv=2/D, vr=getViewR();
+  for(let i=S.objs.length-1;i>=0;i--){
+    const o=S.objs[i];
+    if(o.s>D*.72&&playing&&o.st!=='eat'){
+      if(o.cool>0) o.cool-=dt;
+      else{
+        const ddx=S.hx-o.x, ddz=S.hz-o.z, dd=Math.hypot(ddx,ddz)*inv;
+        if(o.leave){
+          const L=Math.hypot(ddx,ddz)||1, spd=1.0*D, kk=Math.min(1,dt*1.5);
+          o.vx+=(-ddx/L*spd-o.vx)*kk; o.vz+=(-ddz/L*spd-o.vz)*kk;
+        }else if(dd<11&&dd>.01){
+          o.chT=(o.chT||0)+dt; if(o.chT>9) o.leave=true;
+          const spd=(.75+.025*S.ch)*D, tx2=ddx/(dd/inv)*spd, tz2=ddz/(dd/inv)*spd, kk=Math.min(1,dt*1.5);
+          o.vx+=(tx2-o.vx)*kk; o.vz+=(tz2-o.vz)*kk;
+        }
+      }
+    }
+    if(o.feast&&o.st!=='eat'&&playing){ const fx2=S.hx-o.x, fz2=S.hz-o.z, L2=Math.hypot(fx2,fz2)||1; const fs=(L2*inv>vr*1.2?.9:.5)*D; o.vx=fx2/L2*fs; o.vz=fz2/L2*fs; }
+    if(o.fx){ const s2=2.6+.5*Math.sin(S.t*6); o.fx.scale.set(s2,s2,1); }
+    o.x+=o.vx*dt; o.z+=o.vz*dt;
+    let rx=(o.x-S.hx)*inv, rz=(o.z-S.hz)*inv;
+    const rd=o.s*inv, rr=rd/2, edible=o.s<=D*.72;
+    let sc=1, y=rr*.95+.06;
+    if(o.st==='eat'){
+      o.t+=dt/.45;
+      const t=Math.min(1,o.t), r0=o.er*(1-t), a=o.ea+t*3.6;
+      rx=Math.cos(a)*r0; rz=Math.sin(a)*r0;
+      sc=1-t*.9; y=y*(1-t)-rr*1.3*t;
+      if(o.t>=1){ removeObj(i); bite(o); continue; }
+    }else{
+      const dist=Math.hypot(rx,rz);
+      if(o.st==='spawn'){ o.t+=dt/.35; if(o.t>=1){o.t=1;o.st='idle';} sc=easeOut(Math.min(1,o.t)); }
+      if(playing&&edible&&o.st!=='eat'){
+        if(dist<2.3&&dist>.02){
+          const shift=(1-dist/2.3)*1.5*dt*D/2;
+          o.x-=rx/dist*shift; o.z-=rz/dist*shift;
+        }
+        if(dist<.95){ o.st='eat'; o.t=0; o.er=dist; o.ea=Math.atan2(rz,rx); }
+      }
+      if(playing&&!edible&&S.inv<=0&&dist<rr*.8+.6){ hit(o,rx,rz,dist); }
+      if(!o.feast&&(dist>vr*2.3||rd<.024)){ removeObj(i); continue; }
+    }
+    o.g.position.set(rx,y,rz);
+    o.g.scale.setScalar(Math.max(.0001,rd*sc));
+    o.g.rotation.y+=o.spin*dt;
+    o.ring.visible=!edible&&o.st!=='eat';
+  }
+  let guard=0;
+  while(S.objs.length<N_OBJ&&guard++<3) spawn(false);
+}
+
+/* ---------- 画面表示(HUD) ---------- */
+let tickEls=[];
+function setupChapterUI(){
+  const ch=CH[S.ch];
+  $('chK').textContent='だい'+(S.ch+1)+'しょう ▾';
+  $('chName').textContent=ch.n;
+  $('barA').textContent=fmtLen(ch.d0);
+  $('barB').textContent='ゴール '+fmtLen(ch.goal);
+  const box=$('ticks'); box.innerHTML=''; tickEls=[];
+  const span=Math.log(ch.goal/ch.d0);
+  for(const it of ITEMS){
+    const th=it.s/.72, p=Math.log(th/ch.d0)/span;
+    if(p>.03&&p<.99){
+      const e=document.createElement('span'); e.className='tick'; e.style.left=(p*100)+'%';
+      box.appendChild(e); tickEls.push({e:e,th:th});
+    }
+  }
+}
+function updateZukanCount(){ $('zukanCount').textContent=zukan.size+'/'+ITEMS.length; }
+let lastSize='',lastLike='';
+function updateHud(){
+  const ch=CH[S.ch], D=S.D;
+  const a=fmtLen(D); if(a!==lastSize){lastSize=a; $('sizeNum').textContent=a;}
+  const b=nearestLike(D); if(b!==lastLike){lastLike=b; $('likeLine').textContent='≒ '+b;}
+  const p=Math.max(0,Math.min(1,Math.log(D/ch.d0)/Math.log(ch.goal/ch.d0)));
+  S.prog=p;
+  $('barFill').style.width=(p*100)+'%';
+  for(const t of tickEls) t.e.classList.toggle('on',D>=t.th);
+  if(S.mode==='ta') $('tmr').textContent=fmtT(S.mt);
+  else if(S.mode==='ch') $('tmr').textContent='のこり '+Math.max(0,Math.ceil(60-S.mt))+'びょう ・ '+S.eaten+'こ';
+}
+let bannerTimer=0;
+function showBanner(){
+  const ch=CH[S.ch], el=$('banner');
+  el.innerHTML='だい'+(S.ch+1)+'しょう<br>'+ch.n+'<small>'+(S.mode==='ta'?'タイムアタック! ごちそうまで はやく たべよう':S.mode==='ch'?'ぱくぱくチャレンジ! 60びょうで なんこ たべられるかな?':ch.sub)+'</small>';
+  el.classList.add('show'); clearTimeout(bannerTimer); bannerTimer=setTimeout(()=>el.classList.remove('show'),2600);
+}
+
+function startFeast(){
+  const ch=CH[S.ch]; let cand=null;
+  for(const it of ITEMS) if(it.ch===S.ch&&it.s<=.68*ch.goal&&(!cand||it.s>cand.s)) cand=it;
+  if(!cand){ chapterClear(); return; }
+  for(let i=S.objs.length-1;i>=0;i--){ if(S.objs[i].s>S.D*.72) removeObj(i); }
+  spawn(false,{item:cand,s:cand.s},true);
+  S.feast=S.objs[S.objs.length-1]; S.pulse=1.3; seNew();
+  const el=$('banner'); el.innerHTML='ごちそうタイム!<small>'+cand.n+' が やってくるよ。ぱくっと たべよう!</small>';
+  el.classList.add('show'); clearTimeout(bannerTimer); bannerTimer=setTimeout(()=>el.classList.remove('show'),3200);
+}
+
+/* ---------- ステージ ---------- */
+function closeScreens(){ ['sStart','sClear','sSelect','sEnd','sZukan','sOver'].forEach(id=>$(id).classList.remove('open')); }
+function beginStage(j,D0,mode){
+  closeScreens(); ensureAudio();
+  clearObjs(); S.mode=mode; S.mt=0; S.maxCombo=0; S.ch=j; S.D=D0||CH[j].d0; S.hx=S.hz=S.vx=S.vz=0; S.eaten=0; S.pulse=0; S.boost=false; S.prog=0; S.chItems=[]; S.feast=null; S.ts=1; S.combo=0;
+  boostBtn.classList.remove('on'); hideStick();
+  S.lives=3; S.inv=1.5; S.shake=0; drawLives();
+  scrollX=scrollZ=0; zoomF=.55; lastSize=lastLike='';
+  for(let i=0;i<N_OBJ;i++) spawn(true);
+  $('tmrBar').classList.toggle('on',mode!=='adv'); $('tmrMode').textContent=mode==='ta'?'⏱ タイム':mode==='ch'?'★ チャレンジ':'';
+  if(mode==='adv'){ lastStage=j; save('bhg_last',String(j)); gameSave={ch:j,D:S.D}; save('bhg_save',JSON.stringify(gameSave)); }
+  setupChapterUI(); updateHud(); S.phase='play'; showBanner();
+}
+function goStage(j,D0){ beginStage(j,D0,'adv'); }
+let selPrev='play';
+let selMode='adv', selFrom=[];
+function openSelect(m){
+  selMode=(typeof m==='string')?m:'adv';
+  $('selTitle').textContent=selMode==='ta'?'⏱ タイムアタック':selMode==='ch'?'★ ぱくぱくチャレンジ':'ステージを えらぶ';
+  $('selSub').textContent=selMode==='ta'?'ごちそうまで、どれだけ はやく いけるかな?':selMode==='ch'?'60びょうで いくつ たべられるかな?':'すきな ステージから はじめられるよ。';
+  selFrom=['sClear','sOver','sEnd','sStart'].filter(id=>$(id).classList.contains('open')); selFrom.forEach(id=>$(id).classList.remove('open'));
+  selPrev=S.phase; if(S.phase==='play') S.phase='pause';
+  hideStick(); S.boost=false; boostBtn.classList.remove('on');
+  const box=$('stList'); box.innerHTML='';
+  CH.forEach((c,j)=>{
+    const b=document.createElement('button'); b.type='button'; b.className='stg'+(j===S.ch&&S.phase!=='start'?' now':'');
+    const no=document.createElement('span'); no.className='no'; no.textContent=String(j+1);
+    const tx=document.createElement('span'); tx.className='tx';
+    const nm=document.createElement('b'); nm.textContent=c.n;
+    const sm=document.createElement('small'); sm.textContent=fmtLen(c.d0)+' から';
+    if(selMode==='ta'&&rec.ta[j]) sm.textContent='ベスト '+fmtT(rec.ta[j]);
+    if(selMode==='ch'&&rec.ch[j]) sm.textContent='ベスト '+rec.ch[j]+'こ ・ れんぞく '+(rec.cb[j]||0);
+    tx.appendChild(nm); tx.appendChild(sm); b.appendChild(no); b.appendChild(tx);
+    if(cleared.has(j)){ const ok=document.createElement('span'); ok.className='ok'; ok.textContent='クリア'; b.appendChild(ok); }
+    const open=j===0||allOpen||cleared.has(j-1)||cleared.has(j);
+    if(!open){ b.classList.add('lock'); b.disabled=true; sm.textContent='まえの ステージを クリアすると ひらくよ'; const lk=document.createElement('span'); lk.className='ok'; lk.style.background='rgba(255,255,255,.2)'; lk.style.color='var(--dim)'; lk.textContent='ロック'; b.appendChild(lk); }
+    else b.addEventListener('click',()=>beginStage(j,0,selMode));
+    box.appendChild(b);
+  });
+  $('allBtn').textContent='おとなむけ: ぜんぶ ひらく ('+(allOpen?'いま ON':'いま OFF')+')';
+  $('sSelect').classList.add('open');
+}
+function closeSelect(){ $('sSelect').classList.remove('open'); selFrom.forEach(id=>$(id).classList.add('open')); selFrom=[]; if(S.phase==='pause') S.phase=selPrev==='play'?'play':selPrev; }
+$('chapterChip').addEventListener('click',()=>openSelect(S.mode==='adv'?'adv':S.mode));
+$('stageBtn').addEventListener('click',()=>openSelect('adv'));
+$('clStageBtn').addEventListener('click',()=>openSelect(S.mode));
+$('endStageBtn').addEventListener('click',()=>openSelect('adv'));
+$('taBtn').addEventListener('click',()=>openSelect('ta'));
+$('chBtn').addEventListener('click',()=>openSelect('ch'));
+$('stClose').addEventListener('click',closeSelect);
+$('allBtn').addEventListener('click',()=>{ allOpen=!allOpen; save('bhg_all',allOpen?'1':'0'); const ph=S.phase; if(ph==='pause'||ph==='start'||ph==='over'||ph==='clear'||ph==='end'){} $('sSelect').classList.remove('open'); S.phase=selPrev; openSelect(); });
+
+function endChallenge(){
+  S.phase='clear'; inp.x=inp.z=0; hideStick(); S.boost=false; boostBtn.classList.remove('on'); S.pulse=1.5; seClear();
+  confetti(24);
+  const el=$('banner'); el.innerHTML='そこまで!<small>'+S.eaten+'こ たべたよ</small>'; el.classList.add('show'); clearTimeout(bannerTimer); bannerTimer=setTimeout(()=>el.classList.remove('show'),1800);
+  const j=S.ch, n=S.eaten, old=rec.ch[j]||0, nr=n>old;
+  if(nr) rec.ch[j]=n; const oc=rec.cb[j]||0; if(S.maxCombo>oc) rec.cb[j]=S.maxCombo; saveR();
+  setTimeout(()=>{
+    $('clTitle').textContent='ぱくぱくチャレンジ しゅうりょう!'; $('clLbl').textContent='たべた かず';
+    $('clSize').textContent=n+' こ';
+    $('clStart').textContent='60びょうで '+n+'こ たべたよ! さいだい れんぞく ×'+S.maxCombo;
+    const pr=$('clParade'); pr.innerHTML=''; S.chItems.slice(-14).forEach(it=>pr.appendChild(iconFor(it,38)));
+    $('clStamp').textContent=nr?(old?'★ しんきろく! まえは '+old+'こ':'★ はじめての きろく!'):'ベスト '+old+'こ';
+    $('clNext').textContent=S.maxCombo>oc?'★ れんぞく しんきろく ×'+S.maxCombo:'れんぞく ベスト ×'+oc;
+    $('nextBtn').textContent='もういちど';
+    $('sClear').classList.add('open');
+  },1700);
+}
+function chapterClear(){
+  S.phase='clear'; S.feast=null; inp.x=inp.z=0; hideStick(); S.pulse=2.2; S.shake=.5; S.ts=.3;
+  if(S.mode==='adv'){ cleared.add(S.ch); saveC(); const nx=S.ch+1; if(nx<CH.length){ gameSave={ch:nx,D:CH[nx].d0}; save('bhg_save',JSON.stringify(gameSave)); } else { gameSave=null; try{localStorage.removeItem('bhg_save');}catch(e){} } }
+  seClear(); setTimeout(seNew,600);
+  const f=$('flashW'); f.classList.add('on'); setTimeout(()=>f.classList.remove('on'),90);
+  confetti(36);
+  const el=$('banner'); el.innerHTML='ごちそうさま!<small>だい'+(S.ch+1)+'しょう クリア!</small>';
+  el.classList.add('show'); clearTimeout(bannerTimer); bannerTimer=setTimeout(()=>el.classList.remove('show'),2400);
+  setTimeout(()=>{ S.ts=1; },1500);
+  setTimeout(()=>{
+    const ch=CH[S.ch], last=S.ch>=CH.length-1;
+    $('clTitle').textContent='だい'+(S.ch+1)+'しょう クリア!'; $('clLbl').textContent='いまの おおきさ';
+    $('clSize').textContent=fmtLen(S.D);
+    $('clStart').textContent='さいしょは '+fmtLen(ch.d0)+' だったのに、ここまで おおきく なったよ!';
+    const pr=$('clParade'); pr.innerHTML='';
+    S.chItems.slice(-14).forEach(it=>pr.appendChild(iconFor(it,38)));
+    const tot=ITEMS.filter(i=>i.ch===S.ch), got=tot.filter(i=>zukan.has(i.k)).length;
+    $('clStamp').textContent='この しょうの ずかん '+got+'/'+tot.length+(got===tot.length?'  ★ コンプリート!':'');
+    $('clNext').textContent=last?'ここまでで いったん おしまいだよ。':'つぎの ステージが ひらいたよ! だい'+(S.ch+2)+'しょう「'+CH[S.ch+1].n+'」。せかいが ぐんと ひろがるよ。';
+    $('nextBtn').textContent=last?'おしまい':'つぎへ';
+    if(S.mode==='ta'){
+      const t=S.mt, old=rec.ta[S.ch], nr=!old||t<old; if(nr){ rec.ta[S.ch]=t; }
+      if(S.maxCombo>(rec.cb[S.ch]||0)){ rec.cb[S.ch]=S.maxCombo; } saveR();
+      $('clTitle').textContent='タイムアタック クリア!'; $('clLbl').textContent='タイム'; $('clSize').textContent=fmtT(t);
+      $('clStart').textContent='だい'+(S.ch+1)+'しょう「'+ch.n+'」';
+      $('clStamp').textContent=nr?(old?'★ しんきろく! まえは '+fmtT(old):'★ はじめての きろく!'):'ベスト '+fmtT(old);
+      $('clNext').textContent='さいだい れんぞく ×'+S.maxCombo;
+      $('nextBtn').textContent='もういちど';
+    }
+    $('sClear').classList.add('open');
+  },2700);
+}
+$('nextBtn').addEventListener('click',()=>{
+  $('sClear').classList.remove('open');
+  if(S.mode!=='adv'){ beginStage(S.ch,0,S.mode); return; }
+  if(S.ch>=CH.length-1){ $('sEnd').classList.add('open'); S.phase='end'; return; }
+  S.ch++; S.chItems=[]; S.feast=null; S.combo=0; S.D=CH[S.ch].d0; lastStage=S.ch; save('bhg_last',String(S.ch));
+  zoomF=.55; S.phase='play';
+  setupChapterUI(); updateHud(); showBanner();
+});
+$('againBtn').addEventListener('click',()=>goStage(0));
+$('startBtn').addEventListener('click',()=>{ if(gameSave) goStage(gameSave.ch,Math.min(Math.max(gameSave.D,CH[gameSave.ch].d0),CH[gameSave.ch].goal*.98)); else goStage(lastStage); });
+$('newBtn').addEventListener('click',()=>goStage(0));
+
+/* ---------- ずかん ---------- */
+let zPrev='play';
+function openZukan(){
+  zPrev=S.phase; if(S.phase==='play') S.phase='pause';
+  hideStick(); S.boost=false; boostBtn.classList.remove('on');
+  $('zSum').textContent='みつけた かず: '+zukan.size+' / '+ITEMS.length;
+  const box=$('zList'); box.innerHTML='';
+  CH.forEach((c,ci)=>{
+    const h=document.createElement('h3'); h.textContent='だい'+(ci+1)+'しょう '+c.n; box.appendChild(h);
+    const grid=document.createElement('div'); grid.className='grid';
+    ITEMS.filter(it=>it.ch===ci).forEach(it=>{
+      const got=zukan.has(it.k), d=document.createElement('div'); d.className='it'+(got?'':' lock');
+      const b=document.createElement('b'); b.textContent=got?it.n:'？？？';
+      const s=document.createElement('span'); s.className='s'; s.textContent=got?fmtLen(it.s):'';
+      const t=document.createElement('div'); t.className='d'; t.textContent=got?it.d:'まだ たべて いないよ';
+      const tx=document.createElement('div'); tx.className='tx'; tx.appendChild(b); tx.appendChild(s); tx.appendChild(t);
+      d.appendChild(iconFor(it,40)); d.appendChild(tx); grid.appendChild(d);
+    });
+    box.appendChild(grid);
+  });
+  $('sZukan').classList.add('open');
+}
+function closeZukan(){ $('sZukan').classList.remove('open'); if(S.phase==='pause') S.phase=zPrev==='play'?'play':zPrev; }
+$('zukanBtn').addEventListener('click',openZukan);
+$('endZukanBtn').addEventListener('click',openZukan);
+$('zClose').addEventListener('click',closeZukan);
+
+/* ---------- そうさ ---------- */
+const stick=$('stick'), knob=stick.firstElementChild;
+let stickId=null,sx0=0,sy0=0;
+function hideStick(){ stickId=null; stick.style.display='none'; inp.x=inp.z=0; }
+window.addEventListener('pointerdown',e=>{
+  if(S.phase!=='play'||stickId!==null) return;
+  if(e.target.closest&&e.target.closest('#boost,.btn,.screen')) return;
+  stickId=e.pointerId; sx0=e.clientX; sy0=e.clientY;
+  stick.style.left=sx0+'px'; stick.style.top=sy0+'px'; stick.style.display='block';
+  knob.style.transform='translate(0,0)';
+});
+window.addEventListener('pointermove',e=>{
+  if(e.pointerId!==stickId) return;
+  const dx=e.clientX-sx0, dy=e.clientY-sy0, len=Math.hypot(dx,dy), mag=Math.min(1,len/54);
+  if(len>5){ inp.x=dx/len*mag; inp.z=dy/len*mag; }else{ inp.x=inp.z=0; }
+  const kl=Math.min(len,54), kx=len>0?dx/len*kl:0, ky=len>0?dy/len*kl:0;
+  knob.style.transform='translate('+kx+'px,'+ky+'px)';
+});
+const endStick=e=>{ if(e.pointerId===stickId) hideStick(); };
+window.addEventListener('pointerup',endStick);
+window.addEventListener('pointercancel',endStick);
+window.addEventListener('contextmenu',e=>e.preventDefault());
+const boostBtn=$('boost');
+boostBtn.addEventListener('pointerdown',e=>{ e.stopPropagation(); S.boost=true; boostBtn.classList.add('on'); try{boostBtn.setPointerCapture(e.pointerId);}catch(x){} });
+const boostOff=()=>{ S.boost=false; boostBtn.classList.remove('on'); };
+boostBtn.addEventListener('pointerup',boostOff);
+boostBtn.addEventListener('pointercancel',boostOff);
+boostBtn.addEventListener('lostpointercapture',boostOff);
+const KM={ArrowLeft:'l',a:'l',ArrowRight:'r',d:'r',ArrowUp:'u',w:'u',ArrowDown:'d',s:'d'};
+window.addEventListener('keydown',e=>{
+  if(KM[e.key]){ keys[KM[e.key]]=true; e.preventDefault(); }
+  if(e.key===' '){ S.boost=true; boostBtn.classList.add('on'); e.preventDefault(); }
+});
+window.addEventListener('keyup',e=>{
+  if(KM[e.key]) keys[KM[e.key]]=false;
+  if(e.key===' ') boostOff();
+});
+
+/* ---------- メインループ ---------- */
+const skinCur=new THREE.Color(CH[0].skin), skinTo=new THREE.Color(), tmpC=new THREE.Color(), whiteC=new THREE.Color(0xffffff);
+let last=performance.now(), hudT=0;
+function frame(now){
+  const dt=Math.min(.05,Math.max(0,(now-last)/1000)); last=now;
+  step(dt*S.ts);
+  S.pulse=Math.max(0,S.pulse-dt*2.5);
+  /* ブラックホールの見た目: 章が進むほど色が変わり、輪が大きく明るくなる */
+  skinTo.setHex(CH[S.ch].skin); skinCur.lerp(skinTo,Math.min(1,dt*1.5));
+  tmpC.copy(skinCur).lerp(whiteC,.5);
+  glow.material.color.copy(skinCur); glow2.material.color.copy(tmpC); halo.material.color.copy(tmpC); holeLight.color.copy(skinCur);
+  const pt=(S.ch+S.prog)/CH.length;
+  glow.rotation.z-=dt*.45; glow2.rotation.z+=dt*.95;
+  glow.scale.setScalar(1+.5*pt+.2*S.pulse); glow2.scale.setScalar(1+.12*S.pulse);
+  halo.material.opacity=Math.min(.95,.22+.5*pt+.25*S.pulse);
+  halo.scale.setScalar(1+.04*S.pulse);
+  holeLight.intensity=1.4+1.6*S.pulse;
+  zoomF+=(1-zoomF)*Math.min(1,dt*1.6);
+  hudT+=dt; if(hudT>.1){hudT=0; updateHud();}
+  updateStars(); placeCamera();
+  if(S.shake>0){ camera.position.x+=(Math.random()-.5)*S.shake*1.2; camera.position.z+=(Math.random()-.5)*S.shake*1.2; }
+  ringMat.opacity=.55+.3*Math.sin(S.t*6);
+  glow2.material.opacity=S.inv>0?(Math.sin(S.t*30)>0?.9:.2):.85;
+  renderer.render(scene,camera);
+  requestAnimationFrame(frame);
+}
+updateZukanCount();
+drawLives();
+setSound(soundOn);
+(function init(){
+  for(let i=0;i<N_OBJ;i++) spawn(true);
+  setupChapterUI(); updateHud();
+  if(gameSave){ $('startBtn').textContent='つづきから (だい'+(gameSave.ch+1)+'しょう)'; $('newBtn').style.display=''; }
+  else if(lastStage>0){ $('startBtn').textContent='「'+CH[lastStage].n+'」から'; }
+})();
+requestAnimationFrame(frame);
+window.__bhg={S:S,step:step,CH:CH,ITEMS:ITEMS,fmtLen:fmtLen,nearestLike:nearestLike,goStage:goStage,beginStage:beginStage,hit:hit,rec:rec,saveGame:saveGame};
+})();
+</script>
